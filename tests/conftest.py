@@ -31,7 +31,7 @@ async def hass(tmp_path):
     await instance.async_stop(force=True)
 
 
-def make_entry(members, name="Sigle LED"):
+def make_entry(members, name="Test Group"):
     return ConfigEntry(
         version=1,
         minor_version=1,
@@ -48,7 +48,7 @@ def make_entry(members, name="Sigle LED"):
 
 @pytest.fixture
 async def add_group(hass):
-    async def add(members, name="Sigle LED"):
+    async def add(members, name="Test Group"):
         entry = make_entry(members, name)
         await hass.config_entries.async_add(entry)
         await hass.async_block_till_done()

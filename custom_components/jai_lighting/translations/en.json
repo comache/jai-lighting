@@ -3,40 +3,275 @@
   "config": {
     "step": {
       "user": {
-        "title": "Create a lighting group",
-        "description": "Select physical lights. The master scales their current brightness proportionally. Create another entry for each additional group.",
-        "data": {"name": "Group name", "members": "Member lights"}
+        "title": "J'ai Lighting",
+        "description": "Create groups in one lighting hierarchy, or create an absolute preset scene.",
+        "menu_options": {
+          "group": "Add lighting group",
+          "preset": "Add preset"
+        }
+      },
+      "group": {
+        "title": "Configure lighting group",
+        "description": "Choose physical lights and child groups. Each has one primary parent. Confirm moves explicitly. Empty groups are allowed. Saving configuration sends no lighting commands. {error}",
+        "data": {
+          "name": "Group name",
+          "parent": "Parent group",
+          "members": "Direct physical lights",
+          "missing_members": "Keep missing configured lights",
+          "children": "Child groups",
+          "power_policy": "Bare ON policy",
+          "order": "Sibling display order",
+          "allow_moves": "Confirm moving lights or children from another parent",
+          "remove_orphans": "Remove retained orphan group records"
+        },
+        "data_description": {
+          "power_policy": "RESTORE turns on OFF lights at retained levels. FULL sets available lights to full brightness. Explicit brightness or color uses RESTORE.",
+          "missing_members": "Deselecting removes membership; presets targeting that physical identity must be repaired.",
+          "remove_orphans": "Move all direct lights and children first. Repair directly referencing presets in this workflow before Save."
+        }
+      },
+      "group_preview": {
+        "title": "Review topology and preset changes",
+        "description": "Effective preset values and their sources are recalculated before saving. Invalid recipes must be repaired in this workflow.\n\n{preview}",
+        "data": {
+          "action": "Next action"
+        }
+      },
+      "preset": {
+        "title": "Name preset scene",
+        "data": {
+          "name": "Preset name"
+        }
+      },
+      "recipe": {
+        "title": "Edit absolute recipe",
+        "description": "Only assigned properties are stored. More specific targets override each inherited property independently.",
+        "menu_options": {
+          "target": "Add target assignment",
+          "edit_target": "Edit target assignment",
+          "remove_target": "Remove target assignment",
+          "preset_preview": "Preview effective recipe and save"
+        }
+      },
+      "target": {
+        "title": "Target properties",
+        "description": "Assignment switches control which properties are saved. Omitted fields inherit from ancestor targets; fields absent along the entire path stay unchanged. OFF cannot combine with inherited properties.\n{inheritance}\n{error}",
+        "data": {
+          "target": "Group or physical light",
+          "power": "Power assignment",
+          "assign_brightness": "Assign absolute brightness",
+          "brightness_pct": "Absolute brightness (%)",
+          "assign_ct": "Assign color temperature",
+          "color_temp_kelvin": "Color temperature (K)",
+          "assign_color": "Assign color",
+          "color_kind": "Color format",
+          "rgb": "RGB color",
+          "hue": "Hue",
+          "saturation": "Saturation (%)",
+          "x": "CIE x",
+          "y": "CIE y",
+          "assign_effect": "Assign effect",
+          "effect": "Advertised effect name"
+        }
+      },
+      "edit_target": {
+        "title": "Choose assignment to edit",
+        "data": {
+          "row": "Target assignment"
+        }
+      },
+      "remove_target": {
+        "title": "Choose assignment to remove",
+        "description": "Removing an assignment restores inheritance for its properties.",
+        "data": {
+          "row": "Target assignment"
+        }
+      },
+      "preset_preview": {
+        "title": "Review effective preset",
+        "description": "Each effective property has a source. Capability filtering happens after inheritance and validation. Unsupported properties are skipped, not replaced with ancestor values.\n\n{preview}",
+        "data": {
+          "action": "Next action"
+        }
+      },
+      "repair_preset": {
+        "title": "Repair a preset in this topology draft",
+        "description": "Changes remain private until the topology preview is saved.",
+        "data": {
+          "preset": "Preset to repair"
+        }
+      },
+      "migration": {
+        "title": "Resolve legacy membership overlaps",
+        "description": "Choose ONE primary owner for each overlapping physical light. The chosen owning group supplies its retained brightness. Masters remain independent. Other groups lose duplicate membership. No lights are commanded. Take a Home Assistant backup before migration.\n\nRetained brightness by candidate owner:\n{preview}"
       }
     },
     "error": {
-      "name_required": "Enter a group name.",
-      "no_members": "Select at least one light.",
-      "invalid_member": "Select an existing light entity.",
-      "nested_group": "Select physical lights. Nested and aggregate groups are not supported yet."
+      "name_required": "Enter a name.",
+      "invalid_configuration": "Invalid configuration. See the details above.",
+      "invalid_preset": "The effective preset is invalid. Repair its assignments before saving.",
+      "configuration_changed": "Configuration changed or could not be saved. Review the details; reopen the flow if another edit was committed.",
+      "ownership_required": "Select one valid primary owner for each overlap."
+    },
+    "abort": {
+      "migration_failed": "Migration stopped and original data was preserved: {error}"
     }
   },
   "options": {
     "step": {
-      "init": {
-        "title": "Edit lighting group",
-        "description": "Changing membership keeps the virtual light and master value. Existing dashboards and automations can continue to use it.",
-        "data": {"name": "Group name", "members": "Member lights"}
+      "user": {
+        "title": "J'ai Lighting",
+        "description": "Create groups in one lighting hierarchy, or create an absolute preset scene.",
+        "menu_options": {
+          "group": "Add lighting group",
+          "preset": "Add preset"
+        }
+      },
+      "group": {
+        "title": "Configure lighting group",
+        "description": "Choose physical lights and child groups. Each has one primary parent. Confirm moves explicitly. Empty groups are allowed. Saving configuration sends no lighting commands. {error}",
+        "data": {
+          "name": "Group name",
+          "parent": "Parent group",
+          "members": "Direct physical lights",
+          "missing_members": "Keep missing configured lights",
+          "children": "Child groups",
+          "power_policy": "Bare ON policy",
+          "order": "Sibling display order",
+          "allow_moves": "Confirm moving lights or children from another parent",
+          "remove_orphans": "Remove retained orphan group records"
+        },
+        "data_description": {
+          "power_policy": "RESTORE turns on OFF lights at retained levels. FULL sets available lights to full brightness. Explicit brightness or color uses RESTORE.",
+          "missing_members": "Deselecting removes membership; presets targeting that physical identity must be repaired.",
+          "remove_orphans": "Move all direct lights and children first. Repair directly referencing presets in this workflow before Save."
+        }
+      },
+      "group_preview": {
+        "title": "Review topology and preset changes",
+        "description": "Effective preset values and their sources are recalculated before saving. Invalid recipes must be repaired in this workflow.\n\n{preview}",
+        "data": {
+          "action": "Next action"
+        }
+      },
+      "preset": {
+        "title": "Name preset scene",
+        "data": {
+          "name": "Preset name"
+        }
+      },
+      "recipe": {
+        "title": "Edit absolute recipe",
+        "description": "Only assigned properties are stored. More specific targets override each inherited property independently.",
+        "menu_options": {
+          "target": "Add target assignment",
+          "edit_target": "Edit target assignment",
+          "remove_target": "Remove target assignment",
+          "preset_preview": "Preview effective recipe and save"
+        }
+      },
+      "target": {
+        "title": "Target properties",
+        "description": "Assignment switches control which properties are saved. Omitted fields inherit from ancestor targets; fields absent along the entire path stay unchanged. OFF cannot combine with inherited properties.\n{inheritance}\n{error}",
+        "data": {
+          "target": "Group or physical light",
+          "power": "Power assignment",
+          "assign_brightness": "Assign absolute brightness",
+          "brightness_pct": "Absolute brightness (%)",
+          "assign_ct": "Assign color temperature",
+          "color_temp_kelvin": "Color temperature (K)",
+          "assign_color": "Assign color",
+          "color_kind": "Color format",
+          "rgb": "RGB color",
+          "hue": "Hue",
+          "saturation": "Saturation (%)",
+          "x": "CIE x",
+          "y": "CIE y",
+          "assign_effect": "Assign effect",
+          "effect": "Advertised effect name"
+        }
+      },
+      "edit_target": {
+        "title": "Choose assignment to edit",
+        "data": {
+          "row": "Target assignment"
+        }
+      },
+      "remove_target": {
+        "title": "Choose assignment to remove",
+        "description": "Removing an assignment restores inheritance for its properties.",
+        "data": {
+          "row": "Target assignment"
+        }
+      },
+      "preset_preview": {
+        "title": "Review effective preset",
+        "description": "Each effective property has a source. Capability filtering happens after inheritance and validation. Unsupported properties are skipped, not replaced with ancestor values.\n\n{preview}",
+        "data": {
+          "action": "Next action"
+        }
+      },
+      "repair_preset": {
+        "title": "Repair a preset in this topology draft",
+        "description": "Changes remain private until the topology preview is saved.",
+        "data": {
+          "preset": "Preset to repair"
+        }
+      },
+      "migration": {
+        "title": "Resolve legacy membership overlaps",
+        "description": "Choose ONE primary owner for each overlapping physical light. The chosen owning group supplies its retained brightness. Masters remain independent. Other groups lose duplicate membership. No lights are commanded. Take a Home Assistant backup before migration.\n\nRetained brightness by candidate owner:\n{preview}"
       }
     },
     "error": {
-      "name_required": "Enter a group name.",
-      "no_members": "Select at least one light.",
-      "invalid_member": "Select an existing light entity.",
-      "nested_group": "Select physical lights. Nested and aggregate groups are not supported yet."
+      "name_required": "Enter a name.",
+      "invalid_configuration": "Invalid configuration. See the details above.",
+      "invalid_preset": "The effective preset is invalid. Repair its assignments before saving.",
+      "configuration_changed": "Configuration changed or could not be saved. Review the details; reopen the flow if another edit was committed.",
+      "ownership_required": "Select one valid primary owner for each overlap."
+    },
+    "abort": {
+      "migration_failed": "Migration stopped and original data was preserved: {error}"
     }
   },
   "services": {
     "set_master": {
-      "name": "Set master brightness",
-      "description": "Scale member brightness proportionally while preserving power state. When the group is off, adjust the saved levels for its next turn on.",
+      "name": "Set relative master",
+      "description": "Scale current physical brightness while preserving power and independent child masters. Select one group or disjoint groups. Overlapping relative targets are rejected.",
       "fields": {
-        "brightness_pct": {"name": "Master brightness", "description": "Relative master fader position, from 1 to 100 percent."}
+        "brightness_pct": {
+          "name": "Master position",
+          "description": "Relative master from 1 to 100 percent."
+        }
       }
+    },
+    "control": {
+      "name": "Control absolute properties",
+      "description": "Send sparse absolute properties to groups or configured physical leaves in one coherent operation. Strict property kinds are preserved. Ancestor/leaf overlaps deduplicate identical assignments; conflicting assignments are rejected.",
+      "fields": {
+        "properties": {
+          "name": "Sparse properties",
+          "description": "power: on/off; brightness_pct: (0,100]; color_temp_kelvin: positive integer; color: {kind: rgb/hs/xy, value: array}; effect: advertised name. Omitted power preserves OFF state."
+        },
+        "assignments": {
+          "name": "Explicit batch assignments",
+          "description": "Use instead of target plus properties: list of {entity_id: light ID or list, properties: sparse assignments}. Conflicting per-leaf properties reject the entire batch."
+        }
+      }
+    },
+    "activate_preset": {
+      "name": "Activate preset",
+      "description": "Activate one J’ai preset scene with hierarchical per-property inheritance. Optional response reports skipped properties, clamps and failures."
+    },
+    "get_topology": {
+      "name": "Get lighting topology",
+      "description": "Return the shared topology, stable identities, sparse recipes, retained state and resolved entity references. Requires a response."
+    }
+  },
+  "issues": {
+    "configuration": {
+      "title": "J'ai Lighting configuration needs attention",
+      "description": "{error}"
     }
   }
 }

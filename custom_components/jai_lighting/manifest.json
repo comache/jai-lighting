@@ -1,13 +1,17 @@
 {
   "domain": "jai_lighting",
   "name": "J'ai Lighting",
-  "codeowners": ["@comache"],
+  "codeowners": [
+    "@comache"
+  ],
   "config_flow": true,
-  "dependencies": ["light"],
+  "dependencies": [
+    "light"
+  ],
   "documentation": "https://github.com/comache/jai-lighting",
   "integration_type": "helper",
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/comache/jai-lighting/issues",
   "requirements": [],
-  "version": "0.1.0"
+  "version": "0.2.0.dev0"
 }

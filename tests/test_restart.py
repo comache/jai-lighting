@@ -11,7 +11,7 @@ async def test_fresh_ha_instance_restores_master_and_off_target(hass, add_group,
     await hass.services.async_call(
         "jai_lighting",
         "set_master",
-        {"entity_id": "light.jai_sigle_led", "brightness_pct": 50},
+        {"entity_id": "light.jai_test_group", "brightness_pct": 50},
         blocking=True,
     )
     assert entry.runtime_data.engine.memory["light.l0"] == 100
@@ -27,6 +27,6 @@ async def test_fresh_ha_instance_restores_master_and_off_target(hass, add_group,
         await restarted.async_block_till_done()
         assert restored_entry.runtime_data.engine.master == 128
         assert restored_entry.runtime_data.engine.memory["light.l0"] == 100
-        assert restarted.states.get("light.jai_sigle_led").state == "off"
+        assert restarted.states.get("light.jai_test_group").state == "off"
     finally:
         await restarted.async_stop(force=True)

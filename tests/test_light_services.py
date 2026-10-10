@@ -47,7 +47,7 @@ async def leaves(hass):
 
 async def action(hass, service, **data):
     await hass.services.async_call(
-        "light", service, {"entity_id": "light.jai_sigle_led", **data}, blocking=True
+        "light", service, {"entity_id": "light.jai_test_group", **data}, blocking=True
     )
     await hass.async_block_till_done()
 
@@ -79,7 +79,7 @@ async def test_master_action_while_off_then_normal_on_with_brightness(hass, add_
     await hass.services.async_call(
         "jai_lighting",
         "set_master",
-        {"entity_id": "light.jai_sigle_led", "brightness_pct": 50},
+        {"entity_id": "light.jai_test_group", "brightness_pct": 50},
         blocking=True,
     )
     assert not leaves[0].is_on
@@ -91,15 +91,21 @@ async def test_master_action_while_off_then_normal_on_with_brightness(hass, add_
     assert entry.runtime_data.engine.master == 64
 
 
-async def test_entity_targeting_context_and_overlapping_groups(hass, add_group, leaves):
+async def test_entity_targeting_context_and_independent_hierarchy_faders(hass, add_group, leaves):
     first = await add_group([leaves[0].entity_id])
-    second = await add_group([leaves[0].entity_id], "Hol Sus")
+    flow = await hass.config_entries.flow.async_init(
+        "jai_lighting",
+        context={"source": "user"},
+        data={"name": "Second Group", "members": [], "children": [first.entry_id]},
+    )
+    flow = await hass.config_entries.flow.async_configure(flow["flow_id"], {"action": "save"})
+    second = flow["result"]
     assert first.runtime_data.lock is second.runtime_data.lock
     context = Context()
     await hass.services.async_call(
         "jai_lighting",
         "set_master",
-        {"entity_id": "light.jai_sigle_led", "brightness_pct": 50},
+        {"entity_id": "light.jai_test_group", "brightness_pct": 50},
         blocking=True,
         context=context,
     )
@@ -108,7 +114,7 @@ async def test_entity_targeting_context_and_overlapping_groups(hass, add_group, 
     await hass.services.async_call(
         "jai_lighting",
         "set_master",
-        {"entity_id": "light.jai_hol_sus", "brightness_pct": 50},
+        {"entity_id": "light.jai_second_group", "brightness_pct": 50},
         blocking=True,
     )
     assert leaves[0].brightness == 50
@@ -124,7 +130,7 @@ async def test_master_action_rejects_out_of_range_values(hass, add_group, leaves
         await hass.services.async_call(
             "jai_lighting",
             "set_master",
-            {"entity_id": "light.jai_sigle_led", "brightness_pct": percent},
+            {"entity_id": "light.jai_test_group", "brightness_pct": percent},
             blocking=True,
         )
     assert entry.runtime_data.engine.master == 255

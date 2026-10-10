@@ -14,3 +14,22 @@ set_master:
           step: 1
           unit_of_measurement: "%"
           mode: slider
+control:
+  target:
+    entity:
+      domain: light
+  fields:
+    properties:
+      example: {power: "on", brightness_pct: 50}
+      selector:
+        object:
+    assignments:
+      example: [{entity_id: light.jai_example, properties: {power: "on"}}]
+      selector:
+        object:
+activate_preset:
+  target:
+    entity:
+      integration: jai_lighting
+      domain: scene
+get_topology:
