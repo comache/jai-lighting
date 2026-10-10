@@ -1,0 +1,16 @@
+set_master:
+  target:
+    entity:
+      integration: jai_lighting
+      domain: light
+  fields:
+    brightness_pct:
+      required: true
+      example: 35
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+          mode: slider

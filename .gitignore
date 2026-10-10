@@ -1,0 +1,60 @@
+# Python environments, caches and build/coverage output
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tox/
+.nox/
+.cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Credentials and local configuration
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+.aws/
+.ssh/
+.codex/
+
+# Local Home Assistant runtime/test data
+/.ha/
+/.ha_test/
+/ha_config/
+/test_config/
+/config/
+.storage/
+secrets.yaml
+home-assistant.log*
+home-assistant_v2.db*
+*.sqlite
+*.sqlite3
+
+# Editor and operating-system state
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+._*
+Thumbs.db
+
+# Crash reports and core dumps
+*.ips
+*.crash
+core
+core.[0-9]*
+*.core

@@ -1,0 +1,42 @@
+{
+  "title": "J'ai Lighting",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Create a lighting group",
+        "description": "Select physical lights. The master scales their current brightness proportionally. Create another entry for each additional group.",
+        "data": {"name": "Group name", "members": "Member lights"}
+      }
+    },
+    "error": {
+      "name_required": "Enter a group name.",
+      "no_members": "Select at least one light.",
+      "invalid_member": "Select an existing light entity.",
+      "nested_group": "Select physical lights. Nested and aggregate groups are not supported yet."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Edit lighting group",
+        "description": "Changing membership keeps the virtual light and master value. Existing dashboards and automations can continue to use it.",
+        "data": {"name": "Group name", "members": "Member lights"}
+      }
+    },
+    "error": {
+      "name_required": "Enter a group name.",
+      "no_members": "Select at least one light.",
+      "invalid_member": "Select an existing light entity.",
+      "nested_group": "Select physical lights. Nested and aggregate groups are not supported yet."
+    }
+  },
+  "services": {
+    "set_master": {
+      "name": "Set master brightness",
+      "description": "Scale member brightness proportionally while preserving power state. When the group is off, adjust the saved levels for its next turn on.",
+      "fields": {
+        "brightness_pct": {"name": "Master brightness", "description": "Relative master fader position, from 1 to 100 percent."}
+      }
+    }
+  }
+}
