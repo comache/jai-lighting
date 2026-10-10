@@ -104,3 +104,48 @@ def test_future_schema_and_invalid_state_are_not_defaulted():
     data["runtime"]["group_masters"]["g"] = 0
     with pytest.raises(ModelError):
         Snapshot.load(data)
+
+
+@pytest.mark.parametrize("text", ["{broken", "[]", '{"version": 99, "data": {}}'])
+async def test_corrupt_or_future_store_file_preserved(hass, text):
+    from pathlib import Path
+
+    repo = Repository(hass)
+    path = Path(repo.store.path)
+    path.parent.mkdir(exist_ok=True)
+    await hass.async_add_executor_job(path.write_text, text)
+    with pytest.raises(ModelError):
+        await repo.load()
+    assert await hass.async_add_executor_job(path.read_text) == text
+    assert not list(path.parent.glob("*.corrupt*"))
+
+
+def test_raw_legacy_backup_excludes_other_integrations_and_preserves_record_bytes():
+    from custom_components.jai_lighting.migration import raw_legacy_records
+
+    original = '{ "entry_id" : "g", "data": {"name":"User’s lamp"}, "options": {} }'
+    text = (
+        '{"data":{"entries":[' + original + ',{"entry_id":"other","data":{"token":"unrelated"}}]}}'
+    )
+    assert raw_legacy_records(text, {"g"}) == {"g": original}
+    original = '{"state": {"entity_id": "light.jai_example"}, "extra_data": {"master": 90}}'
+    assert raw_legacy_records(
+        '{"data":[' + original + "]}", {"light.jai_example"}, restore=True
+    ) == {"light.jai_example": original}
+
+
+async def test_legacy_backup_is_never_overwritten(hass):
+    repo = Repository(hass)
+    await repo.prepare(
+        Snapshot(),
+        [],
+        legacy={"entries": [entry("g", ["light.old"])], "raw_entries": {"g": "original"}},
+    )
+    await repo.finish()
+    await repo.prepare(
+        Snapshot(),
+        [],
+        legacy={"entries": [entry("g", ["light.new"])], "raw_entries": {"g": "replacement"}},
+    )
+    assert repo.legacy["entries"][0]["data"]["members"] == ["light.old"]
+    assert repo.legacy["raw_entries"]["g"] == "original"

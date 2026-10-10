@@ -48,7 +48,7 @@ def relative(
             if brightness != o.brightness:
                 result.commands[id_] = Intention(id_, True, {"brightness": brightness})
         elif not o.available:
-            result.skipped[id_] = ["unavailable"]
+            result.skipped[id_] = [o.reason]
         elif o.on and o.capabilities.dimmable and o.brightness is None:
             result.skipped[id_] = ["missing_brightness"]
     return result
@@ -79,7 +79,7 @@ def power(
     )
     for id_, o in subset.items():
         if not o.available:
-            result.skipped[id_] = ["unavailable"]
+            result.skipped[id_] = [o.reason]
             continue
         bootstrap(result.state, id_, o)
         if not on:

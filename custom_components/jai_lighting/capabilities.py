@@ -16,16 +16,23 @@ class Color:
 
 
 def properties(data: dict[str, Any]) -> dict[str, Any]:
-    if not data or data.keys() - {
-        "power",
-        "brightness_pct",
-        "color_temp_kelvin",
-        "color",
-        "effect",
-    }:
+    if (
+        not isinstance(data, dict)
+        or not data
+        or data.keys()
+        - {
+            "power",
+            "brightness_pct",
+            "color_temp_kelvin",
+            "color",
+            "effect",
+        }
+    ):
         raise ModelError("Empty recipe or unknown properties")
     result = dict(data)
-    if "power" in data and data["power"] not in {"on", "off"}:
+    if "power" in data and (
+        not isinstance(data["power"], str) or data["power"] not in {"on", "off"}
+    ):
         raise ModelError("Power must be on/off or omitted")
     if "brightness_pct" in data:
         value = data["brightness_pct"]
@@ -42,6 +49,8 @@ def properties(data: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(color, Color):
             if not isinstance(color, dict) or set(color) != {"kind", "value"}:
                 raise ModelError("Color must contain kind and value")
+            if not isinstance(color["value"], (tuple, list)):
+                raise ModelError("Color value must be a numeric sequence")
             color = Color(color["kind"], tuple(color["value"]))
         if any(type(v) not in (int, float) or not math.isfinite(v) for v in color.value):
             raise ModelError("Non-finite color")
@@ -118,7 +127,7 @@ def absolute(
     for leaf_id, data in effective.items():
         o = observations.get(leaf_id, Observation())
         if not o.available:
-            result.skipped[leaf_id] = ["unavailable"]
+            result.skipped[leaf_id] = [o.reason]
             continue
         bootstrap(result.state, leaf_id, o)
         if "power" not in data and not o.on:

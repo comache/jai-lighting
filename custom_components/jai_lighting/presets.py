@@ -31,6 +31,8 @@ class Preset:
     def __post_init__(self) -> None:
         if not self.id or not self.name.strip() or not self.targets:
             raise ModelError("Preset requires identity, name and targets")
+        if len(self.targets) > 1000:
+            raise ModelError("Preset exceeds 1,000 target rows")
 
 
 @dataclass(frozen=True)

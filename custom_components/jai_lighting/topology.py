@@ -10,6 +10,8 @@ from .models import Group, Leaf, ModelError
 class Topology:
     def __init__(self, groups: Iterable[Group] = (), leaves: Iterable[Leaf] = ()) -> None:
         group_list, leaf_list = list(groups), list(leaves)
+        if len(group_list) + len(leaf_list) > 10000:
+            raise ModelError("Topology exceeds 10,000 records")
         self.groups = MappingProxyType({g.id: g for g in group_list})
         self.leaves = MappingProxyType({leaf.id: leaf for leaf in leaf_list})
         if len(self.groups) != len(group_list) or len(self.leaves) != len(leaf_list):

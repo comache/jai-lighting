@@ -1,12 +1,15 @@
 """Versioned HA snapshot and recoverable cross-file configuration journal."""
 
+import json
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from homeassistant.helpers.storage import Store
 
 from .capabilities import Color
-from .models import Group, Identity, Leaf, ModelError, PowerPolicy, RuntimeState
+from .models import Capabilities, Group, Identity, Leaf, ModelError, PowerPolicy, RuntimeState
 from .presets import Preset, Target, resolve
 from .topology import Topology
 
@@ -29,12 +32,29 @@ class Snapshot:
 
     def validate(self) -> None:
         self.runtime.validate()
+        if len(self.presets) > 1000:
+            raise ModelError("Snapshot exceeds 1,000 presets")
         if self.runtime.masters.keys() - self.tree.groups.keys():
             raise ModelError("Unknown group runtime identity")
         if self.runtime.targets.keys() - self.tree.leaves.keys():
             raise ModelError("Unknown leaf runtime identity")
-        if self.config_revision < 0 or self.state_revision < 0:
+        if any(type(v) is not int or v < 0 for v in (self.config_revision, self.state_revision)):
             raise ModelError("Invalid snapshot revision")
+        if self.capabilities.keys() - self.tree.leaves.keys():
+            raise ModelError("Unknown capability cache identity")
+        for record in self.capabilities.values():
+            if (
+                not isinstance(record, dict)
+                or not isinstance(record.get("modes"), list)
+                or not isinstance(record.get("effects", []), list)
+            ):
+                raise ModelError("Invalid capability cache")
+            Capabilities(
+                frozenset(record["modes"]),
+                record.get("min_kelvin"),
+                record.get("max_kelvin"),
+                tuple(record.get("effects", [])),
+            )
         for id_, preset in self.presets.items():
             if id_ != preset.id:
                 raise ModelError("Preset identity mismatch")
@@ -85,7 +105,7 @@ class Snapshot:
 
     @classmethod
     def load(cls, data: dict[str, Any]) -> Snapshot:
-        if data.get("schema_version") != 2:
+        if not isinstance(data, dict) or data.get("schema_version") != 2:
             raise ModelError("Unsupported snapshot schema; stored data preserved")
         try:
             groups = [
@@ -131,7 +151,7 @@ class Snapshot:
             )
             result.validate()
             return result
-        except (KeyError, TypeError, ValueError) as err:
+        except (AttributeError, KeyError, TypeError, ValueError) as err:
             raise ModelError(f"Invalid stored lighting snapshot: {err}") from err
 
 
@@ -139,6 +159,7 @@ class Repository:
     """Caller serializes writes; publish only after durable save succeeds."""
 
     def __init__(self, hass, store=None) -> None:
+        self.hass = hass
         self.store = store or Store(hass, 2, "jai_lighting.state")
         self.snapshot = Snapshot()
         self.journal: dict | None = None
@@ -146,11 +167,35 @@ class Repository:
         self.failed = False
 
     async def load(self) -> None:
+        # HA Store normally renames corrupt JSON and returns None. This integration
+        # must fail closed without treating existing invalid topology as a new install.
+        def precheck():
+            try:
+                envelope = json.loads(Path(self.store.path).read_text(encoding="utf-8"))
+            except FileNotFoundError:
+                return
+            except (ValueError, TypeError) as err:
+                raise ModelError("Corrupt lighting storage preserved; restore a backup") from err
+            if (
+                not isinstance(envelope, dict)
+                or envelope.get("version") != 2
+                or envelope.get("minor_version", 1) != 1
+            ):
+                raise ModelError("Unsupported storage version; file preserved")
+            Snapshot.load(envelope.get("data"))
+
+        await self.hass.async_add_executor_job(precheck)
         if (data := await self.store.async_load()) is not None:
             self.snapshot = Snapshot.load(data)
             self.journal = data.get("journal")
             self.legacy = data.get("legacy_backup", {})
             if self.journal:
+                if (
+                    not isinstance(self.journal, dict)
+                    or self.journal.get("kind") not in {"create", "edit", "migration", "remove"}
+                    or self.journal.get("phase") != "prepared"
+                ):
+                    raise ModelError("Invalid recovery journal; stored data preserved")
                 Snapshot.load(self.journal["candidate"])
                 Snapshot.load(self.journal["before"])
 
@@ -181,8 +226,17 @@ class Repository:
         if self.journal:
             raise ModelError("Another configuration transaction is pending")
         if legacy is not None:
-            self.legacy = legacy
+            previous = {e["entry_id"]: e for e in self.legacy.get("entries", [])}
+            for entry in legacy.get("entries", []):
+                previous.setdefault(entry["entry_id"], entry)
+            restored = dict(legacy.get("restore", {})) | self.legacy.get("restore", {})
+            raw = {
+                key: dict(legacy.get(key, {})) | self.legacy.get(key, {})
+                for key in ("raw_entries", "raw_restore")
+            }
+            self.legacy = {"entries": list(previous.values()), "restore": restored} | raw
         journal = {
+            "operation_id": uuid4().hex,
             "kind": kind,
             "token": token,
             "phase": "prepared",

@@ -22,7 +22,12 @@ class Identity:
     value: str
 
     def __post_init__(self) -> None:
-        if self.kind not in {"registry", "entity_id_fallback"} or not self.value:
+        if (
+            not isinstance(self.kind, str)
+            or self.kind not in {"registry", "entity_id_fallback"}
+            or not isinstance(self.value, str)
+            or not self.value
+        ):
             raise ModelError("Invalid physical identity")
         if self.kind == "entity_id_fallback" and not self.value.startswith("light."):
             raise ModelError("Only light entities can be members")
@@ -41,7 +46,13 @@ class Group:
     order: int = 0
 
     def __post_init__(self) -> None:
-        if not self.id or not self.name.strip() or type(self.order) is not int:
+        if (
+            not isinstance(self.id, str)
+            or not self.id
+            or not isinstance(self.name, str)
+            or not self.name.strip()
+            or type(self.order) is not int
+        ):
             raise ModelError("Invalid group")
         object.__setattr__(self, "policy", PowerPolicy(self.policy))
 
@@ -54,7 +65,13 @@ class Leaf:
     order: int = 0
 
     def __post_init__(self) -> None:
-        if not self.id or not self.parent or type(self.order) is not int:
+        if (
+            not isinstance(self.id, str)
+            or not self.id
+            or not isinstance(self.parent, str)
+            or not self.parent
+            or type(self.order) is not int
+        ):
             raise ModelError("Invalid leaf")
 
 
@@ -64,6 +81,32 @@ class Capabilities:
     min_kelvin: int | None = None
     max_kelvin: int | None = None
     effects: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.modes, frozenset) or any(not isinstance(m, str) for m in self.modes):
+            raise ModelError("Invalid capability modes")
+        if self.modes - {
+            "onoff",
+            "brightness",
+            "hs",
+            "rgb",
+            "xy",
+            "rgbw",
+            "rgbww",
+            "color_temp",
+            "white",
+            "unknown",
+        }:
+            raise ModelError("Unknown capability mode")
+        if any(
+            v is not None and (type(v) is not int or v <= 0)
+            for v in (self.min_kelvin, self.max_kelvin)
+        ):
+            raise ModelError("Invalid temperature bounds")
+        if self.min_kelvin and self.max_kelvin and self.min_kelvin > self.max_kelvin:
+            raise ModelError("Reversed temperature bounds")
+        if any(not isinstance(e, str) or not e for e in self.effects):
+            raise ModelError("Invalid effect names")
 
     @property
     def dimmable(self) -> bool:
@@ -90,6 +133,7 @@ class Observation:
     brightness: int | None = None
     capabilities: Capabilities = Capabilities()
     properties: Mapping[str, Any] = field(default_factory=dict)
+    reason: str = "unavailable"
 
     def __post_init__(self) -> None:
         if self.brightness is not None and (

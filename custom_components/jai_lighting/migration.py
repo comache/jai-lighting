@@ -74,3 +74,51 @@ def preflight(
     )
     result.validate()
     return result
+
+
+def raw_legacy_records(text: str, wanted: set[str], *, restore=False) -> dict[str, str]:
+    """Preserve exact JSON record text without copying unrelated HA credentials."""
+    import json
+
+    decoder = json.JSONDecoder()
+    destination = ("data",) if restore else ("data", "entries")
+    result = {}
+
+    def whitespace(index):
+        while index < len(text) and text[index].isspace():
+            index += 1
+        return index
+
+    def walk(index, path):
+        index = whitespace(index)
+        if path == destination and text[index] == "[":
+            index = whitespace(index + 1)
+            while text[index] != "]":
+                start = index
+                value, index = decoder.raw_decode(text, index)
+                id_ = value.get("state", {}).get("entity_id") if restore else value.get("entry_id")
+                if id_ in wanted:
+                    result[id_] = text[start:index]
+                index = whitespace(index)
+                if text[index] == ",":
+                    index = whitespace(index + 1)
+            return index + 1
+        if text[index] == "{" and destination[: len(path)] == path:
+            index = whitespace(index + 1)
+            while text[index] != "}":
+                key, index = decoder.raw_decode(text, index)
+                index = whitespace(index)
+                if text[index] != ":":
+                    raise ModelError("Malformed legacy storage")
+                index = whitespace(walk(index + 1, (*path, key)))
+                if text[index] == ",":
+                    index = whitespace(index + 1)
+            return index + 1
+        return decoder.raw_decode(text, index)[1]
+
+    try:
+        json.loads(text)  # Validate the complete source before extracting record spans.
+        walk(0, ())
+    except (ValueError, TypeError, AttributeError, IndexError) as err:
+        raise ModelError("Invalid legacy storage; original file preserved") from err
+    return result
