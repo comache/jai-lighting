@@ -51,7 +51,7 @@ def inventory(hass):
         "lights": lights,
         "areas": [{"id": a.id, "name": a.name} for a in areas.async_list_areas()],
         "devices": [
-            {"id": d.id, "name": d.name_by_user or d.name or d.id} for d in devices.devices.values()
+            {"id": d.id, "name": d.name_by_user or d.name or d.id} for d in devices.devices
         ],
         "labels": [
             {"id": label.label_id, "name": label.name}
@@ -139,6 +139,18 @@ def build_candidate(hass, snapshot: Snapshot, operations: list[dict]) -> Snapsho
                 raise ModelError("Reorder must contain each sibling exactly once")
             for index, id_ in enumerate(ids):
                 records[id_] = replace(records[id_], order=index)
+        elif action == "restore_positions":
+            positions = operation["positions"]
+            keys = [(row["kind"], row["id"]) for row in positions]
+            if not positions or len(set(keys)) != len(keys):
+                raise ModelError("Provide distinct positions to restore")
+            for row in positions:
+                if row["kind"] not in {"group", "leaf"}:
+                    raise ModelError("Only hierarchy positions can be restored")
+                records = groups if row["kind"] == "group" else leaves
+                records[row["id"]] = replace(
+                    records[row["id"]], parent=row.get("parent"), order=row["order"]
+                )
         elif action == "add_lights":
             parent = operation["parent"]
             if parent not in groups:
@@ -259,7 +271,60 @@ def preview(snapshot):
     }
 
 
-async def apply(manager, expected, operations):
+def inverse_hierarchy(before, after, operations):
+    """Return a bounded inverse; new physical identities remain retained/unassigned."""
+    if any(
+        op["action"]
+        not in {
+            "move",
+            "reorder",
+            "add_lights",
+            "remove_lights",
+            "restore_positions",
+            "update_group",
+        }
+        for op in operations
+    ):
+        return []
+    positions, inverse = [], []
+    for kind, old, new in (
+        ("group", before.tree.groups, after.tree.groups),
+        ("leaf", before.tree.leaves, after.tree.leaves),
+    ):
+        for id_, record in new.items():
+            prior = old.get(id_)
+            if prior is None or (prior.parent, prior.order) != (record.parent, record.order):
+                positions.append(
+                    {
+                        "kind": kind,
+                        "id": id_,
+                        "parent": prior.parent if prior else None,
+                        "order": prior.order if prior else record.order,
+                    }
+                )
+            if (
+                kind == "group"
+                and prior
+                and (prior.name, prior.policy)
+                != (
+                    record.name,
+                    record.policy,
+                )
+            ):
+                inverse.append(
+                    {
+                        "action": "update_group",
+                        "id": id_,
+                        "name": prior.name,
+                        "policy": prior.policy,
+                    }
+                )
+    if positions:
+        inverse.insert(0, {"action": "restore_positions", "positions": positions})
+    return inverse
+
+
+async def apply(manager, expected, operations, *, with_undo=False):
     """Serialize draft construction with controls; never overwrite newer runtime state."""
     async with manager.lock:
         if expected != manager.snapshot.config_revision:
@@ -290,4 +355,9 @@ async def apply(manager, expected, operations):
         else:
             await manager.repo.prepare(candidate, renamed)
         await manager.recover()
+        if with_undo:
+            return {
+                "revision": candidate.config_revision,
+                "undo_operations": inverse_hierarchy(before, candidate, operations),
+            }
         return candidate.config_revision

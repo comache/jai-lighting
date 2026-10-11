@@ -355,3 +355,109 @@ def test_collection_can_retain_missing_registry_member_and_add_lights(hass, snap
     assert updated.collections["c"].members[0] == "missing"
     assert len(updated.collections["c"].members) == 2
     assert updated.tree.leaves["missing"].identity.value == record.id
+
+
+@pytest.mark.parametrize(
+    "operations",
+    [
+        [{"action": "move", "items": [{"kind": "group", "id": "child"}], "parent": "other"}],
+        [{"action": "move", "items": [{"kind": "leaf", "id": "one"}], "parent": "other"}],
+        [{"action": "remove_lights", "ids": ["one", "two"]}],
+        [{"action": "update_group", "id": "child", "name": "Updated", "policy": "FULL"}],
+        [{"action": "reorder", "kind": "group", "parent": None, "ids": ["other", "root"]}],
+    ],
+)
+async def test_validated_undo_restores_positions_names_and_runtime(hass, snapshot, operations):
+    manager = await get_manager(hass)
+    snapshot.runtime.masters.update(root=80, child=120)
+    snapshot.runtime.targets["one"] = 60
+    await manager.repo.save(snapshot)
+    calls = []
+    hass.bus.async_listen(EVENT_CALL_SERVICE, calls.append)
+    result = await apply(manager, 0, operations, with_undo=True)
+    assert result["revision"] == 1
+    assert result["undo_operations"]
+    # A later physical baseline is retained, rather than restored from an old UI copy.
+    runtime = manager.snapshot.runtime.copy()
+    runtime.masters["child"] = 140
+    runtime.targets["one"] = 75
+    await manager.repo.save(replace(manager.snapshot, runtime=runtime))
+    await apply(manager, 1, result["undo_operations"])
+    assert manager.snapshot.tree.groups == snapshot.tree.groups
+    assert manager.snapshot.tree.leaves == snapshot.tree.leaves
+    assert manager.snapshot.runtime.masters["child"] == 140
+    assert manager.snapshot.runtime.targets["one"] == 75
+    assert not [event for event in calls if event.data["domain"] == "light"]
+    reloaded = Repository(hass)
+    await reloaded.load()
+    assert reloaded.snapshot.tree.groups == snapshot.tree.groups
+    assert reloaded.snapshot.tree.leaves == snapshot.tree.leaves
+
+
+async def test_undo_new_assignment_retains_stable_physical_identity(hass, snapshot):
+    manager = await get_manager(hass)
+    await manager.repo.save(snapshot)
+    result = await apply(
+        manager,
+        0,
+        [{"action": "add_lights", "parent": "child", "entity_ids": ["light.test_three"]}],
+        with_undo=True,
+    )
+    added = next(id_ for id_ in manager.snapshot.tree.leaves if id_ not in snapshot.tree.leaves)
+    identity = manager.snapshot.tree.leaves[added].identity
+    await apply(manager, result["revision"], result["undo_operations"])
+    assert manager.snapshot.tree.leaves[added].parent is None
+    assert manager.snapshot.tree.leaves[added].identity == identity
+    assert manager.snapshot.tree.resolve("child") == snapshot.tree.resolve("child")
+    assert manager.snapshot.runtime.masters == snapshot.runtime.masters
+
+
+async def test_undo_rejects_other_administrators_revision(hass, snapshot):
+    manager = await get_manager(hass)
+    await manager.repo.save(snapshot)
+    result = await apply(manager, 0, [{"action": "remove_lights", "ids": ["one"]}], with_undo=True)
+    await apply(
+        manager, 1, [{"action": "update_group", "id": "other", "name": "Another administrator"}]
+    )
+    current = manager.snapshot.dump()
+    with pytest.raises(ModelError, match="changed"):
+        await apply(manager, result["revision"], result["undo_operations"])
+    assert manager.snapshot.dump() == current
+
+
+def test_restore_positions_still_validates_cycles_and_parent_identity(hass, snapshot):
+    for parent in ("child", "missing"):
+        with pytest.raises(ModelError):
+            build_candidate(
+                hass,
+                snapshot,
+                [
+                    {
+                        "action": "restore_positions",
+                        "positions": [
+                            {"kind": "group", "id": "root", "parent": parent, "order": 0}
+                        ],
+                    }
+                ],
+            )
+    with pytest.raises(ModelError, match="distinct"):
+        build_candidate(hass, snapshot, [{"action": "restore_positions", "positions": []}])
+
+
+async def test_failed_undo_does_not_publish_or_send_lighting(hass, snapshot, monkeypatch):
+    manager = await get_manager(hass)
+    await manager.repo.save(snapshot)
+    result = await apply(manager, 0, [{"action": "remove_lights", "ids": ["one"]}], with_undo=True)
+    before = manager.snapshot.dump()
+    calls = []
+    hass.bus.async_listen(EVENT_CALL_SERVICE, calls.append)
+
+    async def fail(_data):
+        raise OSError("Disk unavailable during Undo")
+
+    monkeypatch.setattr(manager.repo.store, "async_save", fail)
+    with pytest.raises(OSError):
+        await apply(manager, 1, result["undo_operations"])
+    assert manager.snapshot.dump() == before
+    assert manager.repo.journal is None
+    assert not [event for event in calls if event.data["domain"] == "light"]
