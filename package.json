@@ -3,7 +3,10 @@
   "type": "module",
   "scripts": {
     "test:frontend": "node --test tests/frontend/*.test.mjs",
-    "preview:manager": "node scripts/preview-manager.mjs"
+    "preview:manager": "node scripts/preview-manager.mjs",
+    "preview:control": "node scripts/preview-control.mjs",
+    "test:control:webkit": "JAI_BROWSER_ENGINE=webkit node --test tests/frontend/control-browser.test.mjs",
+    "format:check": "prettier --check custom_components/jai_lighting/frontend/*.js tests/frontend/*.mjs scripts/*.mjs package.json"
   },
   "devDependencies": {
     "playwright": "1.62.1",

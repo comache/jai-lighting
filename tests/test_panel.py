@@ -261,6 +261,10 @@ async def test_supported_panel_registration_is_admin_only_and_idempotent(hass):
     assert panel["config"]["_panel_custom"]["name"] == "jai-lighting-manager"
     assert panel["config"]["_panel_custom"]["module_url"] == "/jai_lighting_static/manager.js"
     assert panel["config_panel_domain"] == "jai_lighting"
+    dashboard = hass.data[frontend.DATA_PANELS]["jai-control"].to_response()
+    assert dashboard["title"] == "J'ai Control"
+    assert not dashboard["require_admin"]
+    assert dashboard["config"]["_panel_custom"]["module_url"] == "/jai_lighting_static/control.js"
     connection.async_handle_close()
 
 
