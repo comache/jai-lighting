@@ -5,6 +5,7 @@
     "@comache"
   ],
   "config_flow": true,
+  "after_dependencies": ["frontend", "websocket_api"],
   "dependencies": [
     "light"
   ],
