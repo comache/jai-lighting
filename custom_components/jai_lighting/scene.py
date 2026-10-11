@@ -25,7 +25,9 @@ class JaiScene(Scene):
     @property
     def available(self):
         effective = resolve(
-            self.manager.snapshot.tree, self.manager.snapshot.presets[self.preset_id]
+            self.manager.snapshot.tree,
+            self.manager.snapshot.presets[self.preset_id],
+            collections=self.manager.snapshot.collections,
         )
         observations = self.manager.observations()
         return any(observations[id_].available for id_ in effective.values)

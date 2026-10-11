@@ -5,16 +5,45 @@ lighting hierarchy and absolute preset scenes. Names, topology, lights, presets
 and policies are configured by the user. The integration contains no venue
 configuration or dashboard layouts.
 
-This checkout is **v0.2.0.dev0** on `v0.2-development`, for implementation review.
+This checkout is **0.2.0.dev0**, including the topology manager and v0.2 engine.
 The stable **v0.1.0** baseline remains at its original annotated Git tag. The
-repository [comache/jai-lighting](https://github.com/comache/jai-lighting) remains
-private. No v0.2 release, merge or live deployment has occurred.
+repository is [comache/jai-lighting](https://github.com/comache/jai-lighting).
+The owner confirmed public repository visibility on 2026-10-11 and authorized
+the manager merge and production deployment after a verified full HA backup.
+No new release or version tag is created. Repository validation and verification
+of the actual running installation are separate requirements.
 
 Development and validation target **Home Assistant Core 2026.10.0** and Python
 3.14. Tests use isolated HA directories and fake physical devices. Hardware and
 HA OS validation remain separate review steps. The approved specification is
 [V0.2_ARCHITECTURE.md](V0.2_ARCHITECTURE.md); implementation and recovery details
 are in [IMPLEMENTATION_V0.2.md](IMPLEMENTATION_V0.2.md).
+
+## Manager
+
+Administrators can open **J'ai Lighting** in the HA sidebar. Hierarchy provides
+group creation, rename/policy, subtree moves, explicit membership, ordering,
+multi-selection, search, desktop/touch drag-and-drop and Move to / up / down
+alternatives. Every edit is reviewed and revision-checked before Save.
+
+The physical light browser combines name/entity ID, area, label and device
+filters. Select all matching adds an explicit selection; changing labels later
+never changes stored membership. Labels include entity, device and effective
+area labels. Remove primary membership retains a light as Unassigned, preserving
+its collection/preset identity. Confirmed group deletion promotes direct children
+and lights to the chosen destination; referenced presets must be repaired first.
+
+Collections cross primary branches and may overlap. They have explicit members,
+absolute compatible brightness and ON/OFF controls, without primary parents,
+relative masters or new HA light entities. One batch deduplicates shared lights;
+separate controls serialize in acceptance order. Presets accept collection targets
+between hierarchy assignments and physical overrides; conflicting overlapping
+collection properties are rejected. Existing scenes and group entities remain.
+
+Settings shows storage/recovery status and links the existing native editors.
+See [TOPOLOGY_MANAGER.md](TOPOLOGY_MANAGER.md) for the audit and plan, and
+[MANAGER_ACCEPTANCE.md](MANAGER_ACCEPTANCE.md) for compatibility, validation,
+manual acceptance and later deployment instructions.
 
 ## Configuration
 
@@ -79,7 +108,7 @@ leave every group master unchanged and bypass bare-ON policies.
 
 ## Preset scenes
 
-The editor provides name, add/edit/remove target assignments, group/physical
+The editor provides name, add/edit/remove target assignments, group/collection/physical
 selectors, assignment switches, brightness/temperature/color/effect selectors,
 and a final per-leaf effective-state preview. Every preset creates one native
 `scene.*` entity. Its timestamp records an activation attempt, not success or a
@@ -87,7 +116,8 @@ persistent active-scene state.
 
 Recipes are sparse and absolute. The most specific target wins **per property**:
 a child's brightness can override a parent while inheriting its ON and CT.
-Physical-leaf assignments are most specific. Conflicting assignments at the
+Collections override hierarchy properties; physical-leaf assignments are most
+specific. Conflicting overlapping collection properties and assignments at the
 same specificity are rejected, even when a deeper row would shadow them.
 
 Omission means inherit, otherwise leave unchanged. A property-only recipe does
@@ -157,8 +187,13 @@ power loss can lose recent external observations before their coalesced save.
 .venv/bin/python -X faulthandler -m pytest -q
 .venv/bin/ruff check .
 .venv/bin/ruff format --check .
+npm ci
+npx playwright install chromium
+npm run test:frontend
 ```
 
 Dependencies are pinned in `requirements-dev.txt`. The original v0.1 arithmetic
 regressions remain; overlapping membership and preview-confirmation tests now
 exercise the approved changed contracts. See [VALIDATION.md](VALIDATION.md).
+The manager browser harness serves only generic fixtures on loopback. It does
+not connect to an HA installation; pinned Python tests exercise real HA APIs.

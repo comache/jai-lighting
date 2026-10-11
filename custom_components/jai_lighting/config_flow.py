@@ -146,9 +146,15 @@ class Editor:
     def preview(self, snapshot):
         summaries = []
         for id_, preset in snapshot.presets.items():
-            effective = resolve(snapshot.tree, preset)
+            effective = resolve(snapshot.tree, preset, collections=snapshot.collections)
             old = self.manager.snapshot.presets.get(id_)
-            old_effective = resolve(self.manager.snapshot.tree, old) if old else None
+            old_effective = (
+                resolve(
+                    self.manager.snapshot.tree, old, collections=self.manager.snapshot.collections
+                )
+                if old
+                else None
+            )
             if old_effective == effective:
                 continue
             summaries.append(f"Preset: {preset.name}")
@@ -161,7 +167,11 @@ class Editor:
                 for key, value in values.items():
                     source = effective.sources[leaf_id][key]
                     label = (
-                        snapshot.tree.groups[source.id].name if source.kind == "group" else route
+                        snapshot.tree.groups[source.id].name
+                        if source.kind == "group"
+                        else snapshot.collections[source.id].name
+                        if source.kind == "collection"
+                        else route
                     )
                     summaries.append(f"  {key}: {value} — source {label}")
             if old_effective:
@@ -315,6 +325,9 @@ class Editor:
         if target.kind == "group":
             group = tree.groups.get(target.id)
             return f"Group: {group.name if group else 'Removed group'} [{target.id[-6:]}]"
+        if target.kind == "collection":
+            collection = self.manager.snapshot.collections.get(target.id)
+            return f"Collection: {collection.name if collection else 'Removed collection'}"
         leaf = tree.leaves.get(target.id)
         route = resolve_identity(self.hass, leaf.identity) if leaf else None
         return f"Light: {route or 'Missing light'} [{target.id[-6:]}]"
@@ -349,6 +362,10 @@ class Editor:
         options += [
             {"value": f"leaf:{leaf['value']}", "label": f"Light: {leaf['label']}"}
             for leaf in leaves
+        ]
+        options += [
+            {"value": f"collection:{id_}", "label": f"Collection: {collection.name}"}
+            for id_, collection in self.manager.snapshot.collections.items()
         ]
         defaults = self.row_defaults()
         errors, text = {}, ""

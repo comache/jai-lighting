@@ -58,3 +58,8 @@ Thumbs.db
 core
 core.[0-9]*
 *.core
+
+# Frontend development dependencies and browser test output
+node_modules/
+playwright-report/
+test-results/

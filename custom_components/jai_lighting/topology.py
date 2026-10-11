@@ -19,14 +19,14 @@ class Topology:
         if self.groups.keys() & self.leaves.keys():
             raise ModelError("Group/leaf identity collision")
         children: dict[str | None, list[str]] = defaultdict(list)
-        members: dict[str, list[str]] = defaultdict(list)
+        members: dict[str | None, list[str]] = defaultdict(list)
         identities = set()
         for group in group_list:
             if group.parent is not None and group.parent not in self.groups:
                 raise ModelError(f"Missing parent for group {group.id}")
             children[group.parent].append(group.id)
         for leaf in leaf_list:
-            if leaf.parent not in self.groups:
+            if leaf.parent is not None and leaf.parent not in self.groups:
                 raise ModelError(f"Missing parent for leaf {leaf.id}")
             if leaf.identity.key in identities:
                 raise ModelError(f"Duplicate physical identity: {leaf.id}")
@@ -69,7 +69,8 @@ class Topology:
     def leaf_path(self, leaf_id: str) -> tuple[str, ...]:
         if leaf_id not in self.leaves:
             raise ModelError(f"Unknown leaf: {leaf_id}")
-        return (*self.ancestors(self.leaves[leaf_id].parent), leaf_id)
+        parent = self.leaves[leaf_id].parent
+        return (*self.ancestors(parent), leaf_id) if parent is not None else (leaf_id,)
 
     def resolve(self, group_id: str) -> tuple[str, ...]:
         if group_id not in self.groups:

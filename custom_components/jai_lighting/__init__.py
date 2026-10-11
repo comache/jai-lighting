@@ -10,6 +10,7 @@ from .const import DOMAIN
 from .coordinator import GroupCoordinator
 from .manager import get_manager
 from .models import ModelError
+from .panel import async_setup_panel
 from .services import register_services
 from .topology import Topology
 
@@ -17,6 +18,7 @@ type JaiConfigEntry = ConfigEntry[GroupCoordinator]
 
 
 async def async_setup(hass, config):
+    await async_setup_panel(hass)
     return True
 
 
@@ -43,6 +45,7 @@ async def async_migrate_entry(hass, entry):
 
 
 async def async_setup_entry(hass, entry):
+    await async_setup_panel(hass)
     try:
         manager = await get_manager(hass)
         async with manager.lock:

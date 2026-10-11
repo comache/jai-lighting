@@ -96,6 +96,8 @@ class Manager:
         if self.standalone:
             return False
         parent = self.snapshot.tree.leaves[leaf_id].parent
+        if parent is None:
+            return False
         for group_id in self.snapshot.tree.ancestors(parent):
             entry = self.hass.config_entries.async_get_entry(group_id)
             if entry is None or entry.disabled_by is not None:
@@ -246,6 +248,9 @@ class Manager:
 
     @callback
     def notify(self) -> None:
+        self.hass.bus.async_fire(
+            "jai_lighting_manager_updated", {"config_revision": self.snapshot.config_revision}
+        )
         for listener in tuple(self.listeners.values()):
             listener()
 
@@ -484,6 +489,7 @@ class Manager:
         async with self.lock:
             if expected != self.snapshot.config_revision:
                 raise ModelError("Configuration changed; refresh the form")
+            candidate = self.rebase_runtime(candidate)
             self.validate_candidate(candidate)
             await self.repo.prepare(candidate, hosts)
             await self.recover()
@@ -492,8 +498,30 @@ class Manager:
         async with self.lock:
             if expected != self.snapshot.config_revision:
                 raise ModelError("Configuration changed; refresh the form")
+            candidate = self.rebase_runtime(candidate)
             self.validate_candidate(candidate)
             await self.repo.prepare(candidate, [], kind="create", token=token)
+
+    def rebase_runtime(self, candidate: Snapshot) -> Snapshot:
+        """A reviewed configuration draft must not revert intervening live controls."""
+        runtime = self.snapshot.runtime.copy()
+        runtime.masters = {
+            id_: runtime.masters.get(id_, candidate.runtime.masters.get(id_, 255))
+            for id_ in candidate.tree.groups
+        }
+        runtime.targets = {
+            id_: value for id_, value in runtime.targets.items() if id_ in candidate.tree.leaves
+        }
+        return replace(
+            candidate,
+            runtime=runtime,
+            state_revision=self.snapshot.state_revision + 1,
+            capabilities={
+                id_: record
+                for id_, record in self.snapshot.capabilities.items()
+                if id_ in candidate.tree.leaves
+            },
+        )
 
     def validate_candidate(self, candidate):
         candidate.validate()
@@ -578,6 +606,7 @@ class Manager:
             self.snapshot.config_revision + 1,
             self.snapshot.state_revision + 1,
             {id_: v for id_, v in self.snapshot.capabilities.items() if id_ in leaves},
+            dict(self.snapshot.collections),
         )
         candidate.tree.validate_routing(
             {
@@ -610,13 +639,18 @@ class Manager:
                 state = self.snapshot.runtime
                 if operation == "preset":
                     result, effective = preset_plan(
-                        self.snapshot.tree, state, observations, self.snapshot.presets[preset_id]
+                        self.snapshot.tree,
+                        state,
+                        observations,
+                        self.snapshot.presets[preset_id],
+                        collections=self.snapshot.collections,
                     )
                 elif operation == "control":
                     effective = resolve_preset(
                         self.snapshot.tree,
                         Preset("batch", "Batch", tuple(targets)),
                         inheritance=False,
+                        collections=self.snapshot.collections,
                     )
                     result = absolute(state, observations, effective.values)
                 elif operation == "master":
