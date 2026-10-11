@@ -17,6 +17,7 @@ class Collection:
             or not self.id
             or not isinstance(self.name, str)
             or not self.name.strip()
+            or not isinstance(self.members, tuple)
             or len(self.members) > 10000
             or any(not isinstance(id_, str) or not id_ for id_ in self.members)
             or len(set(self.members)) != len(self.members)

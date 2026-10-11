@@ -489,6 +489,7 @@ class Manager:
         async with self.lock:
             if expected != self.snapshot.config_revision:
                 raise ModelError("Configuration changed; refresh the form")
+            candidate = self.rebase_runtime(candidate)
             self.validate_candidate(candidate)
             await self.repo.prepare(candidate, hosts)
             await self.recover()
@@ -497,8 +498,30 @@ class Manager:
         async with self.lock:
             if expected != self.snapshot.config_revision:
                 raise ModelError("Configuration changed; refresh the form")
+            candidate = self.rebase_runtime(candidate)
             self.validate_candidate(candidate)
             await self.repo.prepare(candidate, [], kind="create", token=token)
+
+    def rebase_runtime(self, candidate: Snapshot) -> Snapshot:
+        """A reviewed configuration draft must not revert intervening live controls."""
+        runtime = self.snapshot.runtime.copy()
+        runtime.masters = {
+            id_: runtime.masters.get(id_, candidate.runtime.masters.get(id_, 255))
+            for id_ in candidate.tree.groups
+        }
+        runtime.targets = {
+            id_: value for id_, value in runtime.targets.items() if id_ in candidate.tree.leaves
+        }
+        return replace(
+            candidate,
+            runtime=runtime,
+            state_revision=self.snapshot.state_revision + 1,
+            capabilities={
+                id_: record
+                for id_, record in self.snapshot.capabilities.items()
+                if id_ in candidate.tree.leaves
+            },
+        )
 
     def validate_candidate(self, candidate):
         candidate.validate()

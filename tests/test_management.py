@@ -242,3 +242,116 @@ async def test_collection_journal_restart_old_store_and_concurrency(hass, snapsh
     assert Snapshot.load(old).collections == {}
     assert Snapshot.load(old).tree.groups == snapshot.tree.groups
     assert not [event for event in calls if event.data["domain"] == "light"]
+
+
+async def test_collection_interruption_preserves_old_and_new_recipes(hass, snapshot):
+    candidate = build_candidate(
+        hass,
+        snapshot,
+        [
+            {
+                "action": "update_collection",
+                "id": "c",
+                "name": "Collection",
+                "members": ["one", "two"],
+            }
+        ],
+    )
+    candidate = replace(
+        candidate,
+        presets={"p": Preset("p", "Recipe", (Target("collection", "c", {"power": "off"}),))},
+    )
+    repository = Repository(hass)
+    await repository.save(snapshot)
+    await repository.prepare(candidate, [])
+    restarted = Repository(hass)
+    await restarted.load()
+    assert restarted.snapshot.collections == {}
+    assert restarted.journal["before"]["groups"] == snapshot.dump()["groups"]
+    await restarted.finish()
+    assert restarted.snapshot.dump() == candidate.dump()
+    with pytest.raises(ModelError, match="Missing preset collection"):
+        build_candidate(
+            hass, restarted.snapshot, [{"action": "delete_collection", "id": "c", "confirm": True}]
+        )
+
+
+async def test_failed_management_save_does_not_publish(hass, snapshot, monkeypatch):
+    manager = await get_manager(hass)
+    await manager.repo.save(snapshot)
+
+    async def fail(_data):
+        raise OSError("Test disk failure")
+
+    monkeypatch.setattr(manager.repo.store, "async_save", fail)
+    with pytest.raises(OSError):
+        await apply(
+            manager,
+            0,
+            [{"action": "update_collection", "id": "c", "name": "Collection", "members": ["one"]}],
+        )
+    assert manager.snapshot.dump() == snapshot.dump()
+    assert manager.repo.journal is None
+
+
+async def test_native_review_draft_does_not_revert_later_runtime(hass, snapshot):
+    manager = await get_manager(hass)
+    await manager.repo.save(snapshot)
+    candidate = manager.group_candidate(
+        "root", {"name": "Renamed", "members": [], "children": ["child"]}
+    )
+    current = manager.snapshot.runtime.copy()
+    current.masters["root"] = 100
+    current.targets["one"] = 80
+    await manager.repo.save(replace(manager.snapshot, runtime=current))
+    await manager.commit(candidate, [], expected=0)
+    assert manager.snapshot.runtime.masters["root"] == 100
+    assert manager.snapshot.runtime.targets["one"] == 80
+
+
+def test_legacy_migration_preserves_existing_collections(snapshot):
+    from custom_components.jai_lighting.migration import preflight
+
+    base = replace(snapshot, collections={"c": Collection("c", "Existing", ("one",))})
+    migrated = preflight(
+        [{"entry_id": "legacy", "data": {"name": "Legacy", "members": []}, "options": {}}],
+        {},
+        {},
+        baseline=base,
+    )
+    assert migrated.collections == base.collections
+    assert migrated.tree.leaves == base.tree.leaves
+
+
+def test_invalid_stored_collection_is_not_defaulted(snapshot):
+    data = snapshot.dump()
+    data["collections"] = {"c": {"name": "Malformed", "members": "one"}}
+    with pytest.raises(ModelError, match="membership"):
+        Snapshot.load(data)
+
+
+def test_collection_can_retain_missing_registry_member_and_add_lights(hass, snapshot):
+    registry = er.async_get(hass)
+    record = registry.async_get_or_create("light", "test", "missing", suggested_object_id="missing")
+    missing = Leaf("missing", Identity("registry", record.id), None)
+    base = replace(
+        snapshot,
+        tree=Topology(snapshot.tree.groups.values(), [*snapshot.tree.leaves.values(), missing]),
+        collections={"c": Collection("c", "Collection", ("missing",))},
+    )
+    registry.async_remove(record.entity_id)
+    updated = build_candidate(
+        hass,
+        base,
+        [
+            {
+                "action": "update_collection",
+                "id": "c",
+                "members": ["missing"],
+                "add_entity_ids": ["light.test_three"],
+            }
+        ],
+    )
+    assert updated.collections["c"].members[0] == "missing"
+    assert len(updated.collections["c"].members) == 2
+    assert updated.tree.leaves["missing"].identity.value == record.id

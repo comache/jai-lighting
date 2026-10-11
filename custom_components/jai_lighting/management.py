@@ -191,6 +191,15 @@ def build_candidate(hass, snapshot: Snapshot, operations: list[dict]) -> Snapsho
                 if len(set(ids)) != len(ids):
                     raise ModelError("Duplicate collection selection")
                 members = tuple(register_light(entity_id) for entity_id in ids)
+            additions = operation.get("add_entity_ids", [])
+            if len(set(additions)) != len(additions):
+                raise ModelError("Duplicate collection addition")
+            if additions:
+                members = tuple(
+                    dict.fromkeys(
+                        (*members, *(register_light(entity_id) for entity_id in additions))
+                    )
+                )
             collections[id_] = Collection(
                 id_, operation.get("name", old.name if old else ""), members
             )

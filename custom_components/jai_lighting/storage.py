@@ -152,6 +152,11 @@ class Snapshot:
                 for id_, p in data["presets"].items()
             }
             runtime = data["runtime"]
+            if any(
+                not isinstance(record.get("members"), list)
+                for record in data.get("collections", {}).values()
+            ):
+                raise ModelError("Invalid stored collection membership")
             result = cls(
                 Topology(groups, leaves),
                 RuntimeState(
