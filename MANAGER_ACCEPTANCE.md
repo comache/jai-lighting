@@ -4,6 +4,12 @@ Implementation branch: `topology-manager-development`, based on main `aea79db`.
 Integration version remains `0.2.0.dev0`; Home Assistant Core pin is 2026.10.0.
 No release, tag, main merge, live deployment or live configuration edit was made.
 
+GitHub verification reported existing repository visibility `public`, despite
+the earlier private-repository instructions. Visibility was not changed by this
+task. The manager branch push to `35e19ee` completed before that discrepancy was
+acted on. Further pushes are paused pending owner clarification; this correction
+is initially a local documentation commit.
+
 ## Automated validation
 
 Final validation on 2026-10-11:

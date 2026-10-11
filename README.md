@@ -8,8 +8,10 @@ configuration or dashboard layouts.
 This checkout is **0.2.0.dev0** on `topology-manager-development`, for manager
 implementation review. The preceding v0.2 engine is already merged into `main`.
 The stable **v0.1.0** baseline remains at its original annotated Git tag. The
-repository [comache/jai-lighting](https://github.com/comache/jai-lighting) remains
-private. This manager has not been merged or deployed; no new release is created.
+repository is [comache/jai-lighting](https://github.com/comache/jai-lighting).
+GitHub reported its existing visibility as public on 2026-10-11; this task did
+not change visibility. This manager has not been merged or deployed; no new
+release is created.
 The owner's earlier live engine test is separate from isolated manager validation.
 
 Development and validation target **Home Assistant Core 2026.10.0** and Python
