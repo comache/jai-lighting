@@ -60,4 +60,28 @@ manifest `0.2.0.dev0`. Released tag `v0.1.0` remains immutable.
 - Native HA brightness services keep their existing ON behavior. The manager
   relative fader uses `set_master` semantics; deferred engine findings are separate.
 
-Implementation status and acceptance instructions will be updated after checks.
+## Implementation status
+
+Phases 0–6 are implemented on `topology-manager-development`: audit/plan,
+supported sidebar panel, hierarchy editor and desktop/touch drag-and-drop,
+registry/label selection, independent collections, collection preset targets,
+and persistent validated transactions. Phase 7 automated tests are implemented;
+physical-device, HA OS frontend and actual iOS/iPadOS acceptance remain manual.
+There are no unresolved implementation decisions. Extension choices above are
+explicit; existing relative planning and dispatch are retained.
+
+- `collections`, `models`, `topology`, `storage`, `migration`: additive collection
+  records and unassigned stable physical records; old schema-2 snapshots load.
+- `management`: explicit metadata selection, whole-draft validation, moves/order,
+  confirmed deletion and current-runtime-preserving journal transactions.
+- `panel`, `frontend/manager.js`, `frontend/model.js`: admin websocket/API and
+  responsive native custom component registered through supported HA APIs.
+- `presets`, `config_flow`, `scene`, `manager`: collection resolution/provenance,
+  existing native creation flows and scene compatibility, update notifications,
+  runtime rebase when saving a previously reviewed configuration draft.
+- `tests/test_management.py`, `tests/test_panel.py`, `tests/frontend`: pure
+  mutation/resolution, real pinned HA APIs and isolated browser interaction tests.
+
+The original planner, relative fader and capability conversion are unchanged.
+See [MANAGER_ACCEPTANCE.md](MANAGER_ACCEPTANCE.md) for validation evidence,
+migration boundaries, deferred engine findings and later deployment instructions.
