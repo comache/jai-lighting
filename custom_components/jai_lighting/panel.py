@@ -145,7 +145,7 @@ async def websocket_manager(hass, connection, msg):
                     "presets_after": preview(candidate),
                 }
         elif command == "apply":
-            result = {"revision": await apply(manager, msg["revision"], msg["operations"])}
+            result = await apply(manager, msg["revision"], msg["operations"], with_undo=True)
         elif command == "create":
             if msg["revision"] != manager.snapshot.config_revision:
                 raise ModelError("Configuration changed; refresh before creating")

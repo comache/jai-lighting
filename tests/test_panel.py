@@ -261,3 +261,33 @@ async def test_supported_panel_registration_is_admin_only_and_idempotent(hass):
     assert panel["config"]["_panel_custom"]["module_url"] == "/jai_lighting_static/manager.js"
     assert panel["config_panel_domain"] == "jai_lighting"
     connection.async_handle_close()
+
+
+async def test_websocket_autosave_undo_and_conflict_preserve_physical_state(hass):
+    physical = Device("undo", {ColorMode.BRIGHTNESS}, on=False)
+    await hass.data[DATA_COMPONENT].async_add_entities([physical])
+    entry = await group(hass, "Undo group", [physical.entity_id])
+    connection, request = await client(hass)
+    before = await ok(request, "get")
+    leaf = next(iter(before["leaves"]))
+    saved = await ok(
+        request,
+        "apply",
+        revision=before["config_revision"],
+        operations=[{"action": "remove_lights", "ids": [leaf]}],
+    )
+    assert saved["undo_operations"]
+    await ok(request, "apply", revision=saved["revision"], operations=saved["undo_operations"])
+    restored = await ok(request, "get")
+    assert restored["groups"] == before["groups"]
+    assert restored["leaves"] == before["leaves"]
+    assert restored["entities"] == before["entities"]
+    assert restored["runtime"] == before["runtime"]
+    conflict = await request(
+        "apply", revision=saved["revision"], operations=saved["undo_operations"]
+    )
+    assert not conflict["success"]
+    assert "changed" in conflict["error"]["message"].lower()
+    assert not physical.calls
+    assert hass.states.get(restored["entities"][entry.entry_id]).state == "off"
+    connection.async_handle_close()
