@@ -55,7 +55,7 @@ def physical_services(hass):
 async def test_setup_and_unload(hass, add_group):
     put(hass, "light.l0", 80)
     entry = await add_group(["light.l0"])
-    state = hass.states.get("light.jai_sigle_led")
+    state = hass.states.get("light.jai_test_group")
     assert state.state == STATE_ON
     assert state.attributes["brightness"] == 255
     assert state.attributes["entity_id"] == ["light.l0"]
@@ -75,10 +75,10 @@ async def test_event_updates_manual_baseline_and_availability(hass, add_group):
     assert entry.runtime_data.engine.master == 255
     hass.states.async_set("light.l0", "unavailable")
     await hass.async_block_till_done()
-    assert hass.states.get("light.jai_sigle_led").state == "unavailable"
+    assert hass.states.get("light.jai_test_group").state == "unavailable"
     put(hass, "light.l0", 30, on=False)
     await hass.async_block_till_done()
-    state = hass.states.get("light.jai_sigle_led")
+    state = hass.states.get("light.jai_test_group")
     assert state.state == STATE_OFF
     assert state.attributes["master_brightness"] == 255
 
@@ -126,7 +126,7 @@ async def test_timeout_does_not_invent_member_brightness(hass):
     hass.services.async_register("light", "turn_on", lambda call: None)
     coordinator = GroupCoordinator(hass, ["light.l0"], asyncio.Lock())
     coordinator.engine.master = 100
-    with patch("custom_components.jai_lighting.coordinator.STATE_TIMEOUT", 0.01):
+    with patch("custom_components.jai_lighting.manager.STATE_TIMEOUT", 0.01):
         with pytest.raises(HomeAssistantError, match="light.l0"):
             await coordinator.execute("master", Context(), 150)
     assert coordinator.engine.memory["light.l0"] == 100
@@ -156,29 +156,41 @@ async def test_delayed_quantized_acknowledgement(hass):
 async def test_config_flow_validation_and_multiple_groups(hass):
     put(hass, "light.l0")
     result = await hass.config_entries.flow.async_init("jai_lighting", context={"source": "user"})
-    assert result["type"] == "form"
+    assert result["type"] == "menu"
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "group"}
+    )
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"name": " ", "members": ["light.l0"]}
     )
-    assert result["errors"] == {"name": "name_required"}
+    assert result["errors"] == {"base": "invalid_configuration"}
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"name": "Sigle LED", "members": []}
+        result["flow_id"], {"name": "Test Group", "members": ["light.l0", "light.l0"]}
     )
-    assert result["errors"] == {"members": "no_members"}
+    assert result["errors"] == {"base": "invalid_configuration"}
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"name": "Sigle LED", "members": ["light.missing"]}
+        result["flow_id"], {"name": "Test Group", "members": ["light.missing"]}
     )
-    assert result["errors"] == {"members": "invalid_member"}
+    assert result["errors"] == {"base": "invalid_configuration"}
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"name": "Sigle LED", "members": ["light.l0", "light.l0"]}
+        result["flow_id"], {"name": "Test Group", "members": ["light.l0"]}
     )
+    assert result["step_id"] == "group_preview"
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"action": "save"})
     assert result["type"] == "create_entry"
-    assert result["data"]["members"] == ["light.l0"]
+    first = result["result"]
+    assert first.runtime_data.engine.members == ("light.l0",)
     second = await hass.config_entries.flow.async_init(
         "jai_lighting",
         context={"source": "user"},
-        data={"name": "Hol Sus", "members": ["light.l0"]},
+        data={"name": "Second Group", "members": ["light.l0"]},
     )
+    assert second["errors"] == {"base": "invalid_configuration"}
+    put(hass, "light.other")
+    second = await hass.config_entries.flow.async_configure(
+        second["flow_id"], {"name": "Second Group", "members": ["light.other"]}
+    )
+    second = await hass.config_entries.flow.async_configure(second["flow_id"], {"action": "save"})
     assert second["type"] == "create_entry"
     await hass.async_block_till_done()
 
@@ -190,7 +202,7 @@ async def test_options_replace_member_keeps_entity_id_master_and_memory(hass, ad
     await hass.services.async_call(
         "jai_lighting",
         "set_master",
-        {"entity_id": "light.jai_sigle_led", "brightness_pct": 50},
+        {"entity_id": "light.jai_test_group", "brightness_pct": 50},
         blocking=True,
     )
     master = entry.runtime_data.engine.master
@@ -199,30 +211,34 @@ async def test_options_replace_member_keeps_entity_id_master_and_memory(hass, ad
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {"name": "New Name", "members": ["light.replacement"]}
     )
+    assert result["step_id"] == "group_preview"
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"action": "save"}
+    )
     assert result["type"] == "create_entry"
     await hass.async_block_till_done()
     assert entry.runtime_data.engine.master == master
     assert entry.runtime_data.engine.memory == {}
-    assert hass.states.get("light.jai_sigle_led").attributes["entity_id"] == ["light.replacement"]
+    assert hass.states.get("light.jai_test_group").attributes["entity_id"] == ["light.replacement"]
     assert entry.title == "New Name"
 
 
 async def test_restore_entity_extra_data_when_off(hass, add_group):
     put(hass, "light.l0", 200, on=False)
-    restored = hass.states.async_set("light.jai_sigle_led", STATE_OFF)
+    restored = hass.states.async_set("light.jai_test_group", STATE_OFF)
     del restored
     from homeassistant.util import dt as dt_util
 
-    get_restore_data(hass).last_states["light.jai_sigle_led"] = StoredState(
-        hass.states.get("light.jai_sigle_led"),
+    get_restore_data(hass).last_states["light.jai_test_group"] = StoredState(
+        hass.states.get("light.jai_test_group"),
         RestoredExtraData({"version": 1, "master": 90, "memory": {"light.l0": 60}}),
         dt_util.utcnow(),
     )
-    hass.states.async_remove("light.jai_sigle_led")
+    hass.states.async_remove("light.jai_test_group")
     entry = await add_group(["light.l0"])
     assert entry.runtime_data.engine.master == 90
     assert entry.runtime_data.engine.memory["light.l0"] == 60
-    assert hass.states.get("light.jai_sigle_led").attributes["master_brightness"] == 90
+    assert hass.states.get("light.jai_test_group").attributes["master_brightness"] == 90
 
 
 async def test_known_nested_groups_rejected_in_flow_and_runtime(hass, add_group):
@@ -231,11 +247,13 @@ async def test_known_nested_groups_rejected_in_flow_and_runtime(hass, add_group)
     result = await hass.config_entries.flow.async_init(
         "jai_lighting",
         context={"source": "user"},
-        data={"name": "Parent", "members": ["light.jai_sigle_led"]},
+        data={"name": "Parent", "members": ["light.jai_test_group"]},
     )
-    assert result["errors"] == {"members": "nested_group"}
-    coordinator = GroupCoordinator(hass, ["light.jai_sigle_led"], asyncio.Lock())
-    assert not coordinator.available
+    assert result["errors"] == {"base": "invalid_configuration"}
+    from custom_components.jai_lighting.models import ModelError
+
+    with pytest.raises(ModelError, match="individual light"):
+        GroupCoordinator(hass, ["light.jai_test_group"], asyncio.Lock())
     registry = er.async_get(hass)
     registry.async_get_or_create("light", "group", "aggregate", suggested_object_id="aggregate")
     result = await hass.config_entries.flow.async_init(
@@ -243,4 +261,4 @@ async def test_known_nested_groups_rejected_in_flow_and_runtime(hass, add_group)
         context={"source": "user"},
         data={"name": "Parent", "members": ["light.aggregate"]},
     )
-    assert result["errors"] == {"members": "nested_group"}
+    assert result["errors"] == {"base": "invalid_configuration"}

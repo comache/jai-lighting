@@ -1,156 +1,106 @@
-"""Event-driven Home Assistant adapter for the relative fader engine."""
+"""Per-group views of the shared manager; no independent leaf memories."""
 
 import asyncio
-import logging
-from collections.abc import Callable
-from typing import Any
 
-from homeassistant.components.light import ATTR_BRIGHTNESS, brightness_supported
-from homeassistant.const import STATE_OFF, STATE_ON
-from homeassistant.core import Context, Event, HomeAssistant, callback
-from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.core import callback
 
-from .const import SERVICE_TIMEOUT, STATE_TIMEOUT
-from .engine import Command, FaderEngine, Member
-from .membership import is_aggregate
+from .engine import Member
+from .manager import Manager
+from .membership import identity_for
+from .models import Group, Leaf
+from .storage import Snapshot
+from .topology import Topology
 
-_LOGGER = logging.getLogger(__name__)
+
+class FaderView:
+    """Compatibility/read interface backed entirely by shared retained state."""
+
+    def __init__(self, coordinator) -> None:
+        self.coordinator = coordinator
+
+    @property
+    def master(self):
+        return self.coordinator.manager.snapshot.runtime.masters.get(self.coordinator.group_id, 255)
+
+    @master.setter
+    def master(self, value):
+        # Isolated adapter fixtures only; public actions persist before acceptance.
+        self.coordinator.manager.snapshot.runtime.masters[self.coordinator.group_id] = value
+
+    @property
+    def members(self):
+        c = self.coordinator
+        routes = c.manager.routes()
+        return tuple(routes[id_] or id_ for id_ in c.manager.snapshot.tree.resolve(c.group_id))
+
+    @property
+    def memory(self):
+        c = self.coordinator
+        routes = c.manager.routes()
+        return {
+            routes[id_] or id_: value
+            for id_, value in c.manager.snapshot.runtime.targets.items()
+            if id_ in c.manager.snapshot.tree.resolve(c.group_id)
+        }
+
+    def as_dict(self):
+        return {"version": 2, "master": self.master, "memory": self.memory}
 
 
 class GroupCoordinator:
-    """Read actual HA state, serialize groups, and acknowledge physical calls."""
-
-    def __init__(self, hass: HomeAssistant, members: list[str], lock: asyncio.Lock) -> None:
-        self.hass = hass
-        self.engine = FaderEngine(members)
-        self.lock = lock
-        self.failures: dict[str, str] = {}
-        self._listeners: list[Callable[[], None]] = []
-        self._unsubscribe: Callable[[], None] | None = None
-
-    def observations(self) -> dict[str, Member]:
-        """Map each unique leaf to its actual reported state."""
-        observations = {}
-        for entity_id in self.engine.members:
-            state = self.hass.states.get(entity_id)
-            if state is None or is_aggregate(self.hass, entity_id):
-                observations[entity_id] = Member(False)
-                continue
-            modes = state.attributes.get("supported_color_modes") or []
-            brightness = state.attributes.get(ATTR_BRIGHTNESS)
-            valid_brightness = type(brightness) is int and 1 <= brightness <= 255
-            observations[entity_id] = Member(
-                available=state.state in (STATE_ON, STATE_OFF),
-                on=state.state == STATE_ON,
-                dimmable=brightness_supported(set(modes)),
-                brightness=brightness if valid_brightness else None,
+    def __init__(self, hass, group_or_members, manager_or_lock) -> None:
+        if isinstance(manager_or_lock, Manager):
+            self.manager, self.group_id = manager_or_lock, group_or_members
+        else:
+            # Preserve the existing isolated physical-adapter regression harness.
+            self.manager = Manager(hass, manager_or_lock or asyncio.Lock())
+            self.manager.standalone = True
+            self.group_id = "adapter-reference"
+            self.manager.repo.snapshot = Snapshot(
+                Topology(
+                    [Group(self.group_id, "Adapter reference")],
+                    [
+                        Leaf(id_, identity_for(hass, id_, existing=True), self.group_id)
+                        for id_ in dict.fromkeys(group_or_members)
+                    ],
+                )
             )
-        return observations
+        self.engine = FaderView(self)
+        self.lock = self.manager.lock
+        self._unsubscribe = None
 
     @property
-    def available(self) -> bool:
-        return any(member.available for member in self.observations().values())
+    def failures(self):
+        return self.manager.failures
+
+    def observations(self):
+        routes, observations = self.manager.routes(), self.manager.observations()
+        return {
+            routes[id_] or id_: Member(o.available, o.on, o.capabilities.dimmable, o.brightness)
+            for id_ in self.manager.snapshot.tree.resolve(self.group_id)
+            for o in [observations[id_]]
+        }
 
     @property
-    def is_on(self) -> bool:
-        return any(member.available and member.on for member in self.observations().values())
+    def available(self):
+        return any(o.available for o in self.observations().values())
+
+    @property
+    def is_on(self):
+        return any(o.available and o.on for o in self.observations().values())
 
     @callback
-    def start(self, listener: Callable[[], None]) -> None:
-        """Track only configured members; no polling or feedback writes."""
-        self._listeners.append(listener)
-        self._unsubscribe = async_track_state_change_event(
-            self.hass, self.engine.members, self._state_changed
-        )
-        self.engine.observe(self.observations())
+    def start(self, listener):
+        self.manager.listeners[self.group_id] = listener
+        self._unsubscribe = lambda: self.manager.listeners.pop(self.group_id, None)
 
     @callback
-    def stop(self) -> None:
+    def stop(self):
         if self._unsubscribe:
             self._unsubscribe()
             self._unsubscribe = None
-        self._listeners.clear()
 
-    @callback
-    def _state_changed(self, event: Event) -> None:
-        self.engine.observe(self.observations())
-        self._notify()
-
-    @callback
-    def _notify(self) -> None:
-        for listener in self._listeners:
-            listener()
-
-    async def execute(self, operation: str, context: Context, master: int | None = None) -> None:
-        """Plan from fresh actual state and finish partial batches consistently."""
-        async with self.lock:
-            states = self.observations()
-            if operation == "off":
-                commands = self.engine.turn_off(states)
-            elif operation == "on":
-                commands = self.engine.turn_on(states, master)
-            else:
-                assert master is not None
-                commands = self.engine.set_master(master, states)
-            self.failures = {}
-            self._notify()
-            results = await asyncio.gather(
-                *(self._send(command, context) for command in commands),
-                return_exceptions=True,
-            )
-            for command, result in zip(commands, results, strict=True):
-                if isinstance(result, Exception):
-                    self.failures[command.entity_id] = str(result) or type(result).__name__
-                    _LOGGER.warning("Command failed for %s: %s", command.entity_id, result)
-            self.engine.observe(self.observations())
-            self._notify()
-            if self.failures:
-                raise HomeAssistantError(
-                    "J'ai Lighting could not confirm: " + ", ".join(self.failures)
-                )
-
-    async def _send(self, command: Command, context: Context) -> None:
-        """Wait for a changed real report, accepting device quantization."""
-        before = self.hass.states.get(command.entity_id)
-        acknowledged = asyncio.Event()
-
-        def matches(state: Any) -> bool:
-            if state is None or state.state != (STATE_ON if command.on else STATE_OFF):
-                return False
-            if command.brightness is None:
-                return True
-            brightness = state.attributes.get(ATTR_BRIGHTNESS)
-            if type(brightness) is not int or not 1 <= brightness <= 255:
-                return False
-            return brightness == command.brightness or (
-                before is not None
-                and (state.state, brightness)
-                != (before.state, before.attributes.get(ATTR_BRIGHTNESS))
-            )
-
-        @callback
-        def changed(event: Event) -> None:
-            if matches(event.data.get("new_state")):
-                acknowledged.set()
-
-        unsubscribe = async_track_state_change_event(self.hass, [command.entity_id], changed)
-        data: dict[str, Any] = {"entity_id": command.entity_id}
-        if command.brightness is not None:
-            data[ATTR_BRIGHTNESS] = command.brightness
-        try:
-            await asyncio.wait_for(
-                self.hass.services.async_call(
-                    "light",
-                    "turn_on" if command.on else "turn_off",
-                    data,
-                    blocking=True,
-                    context=context,
-                ),
-                timeout=SERVICE_TIMEOUT,
-            )
-            if matches(self.hass.states.get(command.entity_id)):
-                acknowledged.set()
-            await asyncio.wait_for(acknowledged.wait(), timeout=STATE_TIMEOUT)
-        finally:
-            unsubscribe()
+    async def execute(self, operation, context, master=None, fields=None):
+        return await self.manager.execute(
+            operation, context, groups=(self.group_id,), master=master, fields=fields
+        )

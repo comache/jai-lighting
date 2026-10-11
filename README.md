@@ -1,168 +1,164 @@
 # J'ai Lighting
 
-A Home Assistant custom integration for relative lighting-group master faders.
-Create `light.jai_sigle_led` from existing physical lights and use it in dashboards,
-scenes and automations. Change its membership through the UI when replacing a
-light; the virtual entity keeps its identity.
+Home Assistant groups with independent relative master faders, a shared physical
+lighting hierarchy and absolute preset scenes. Names, topology, lights, presets
+and policies are configured by the user. The integration contains no venue
+configuration or dashboard layouts.
 
-Targets **Home Assistant Core 2026.10.x**, including installations on **HA OS
-18.3**. Development uses Python >=3.14.2 and the exact Core 2026.10.0 runtime.
-This integration is an initial release: test it with a small group on the actual
-installation before rolling it out to all 30+ lights.
+This checkout is **v0.2.0.dev0** on `v0.2-development`, for implementation review.
+The stable **v0.1.0** baseline remains at its original annotated Git tag. The
+repository [comache/jai-lighting](https://github.com/comache/jai-lighting) remains
+private. No v0.2 release, merge or live deployment has occurred.
 
-## Install
+Development and validation target **Home Assistant Core 2026.10.0** and Python
+3.14. Tests use isolated HA directories and fake physical devices. Hardware and
+HA OS validation remain separate review steps. The approved specification is
+[V0.2_ARCHITECTURE.md](V0.2_ARCHITECTURE.md); implementation and recovery details
+are in [IMPLEMENTATION_V0.2.md](IMPLEMENTATION_V0.2.md).
 
-### Manual installation
+## Configuration
 
-1. Copy `custom_components/jai_lighting/` from this repository into
-   `/config/custom_components/jai_lighting/` on Home Assistant. The manifest must
-   be at `/config/custom_components/jai_lighting/manifest.json`.
-2. Restart Home Assistant.
-3. Open **Settings → Devices & services → Add integration → J'ai Lighting**.
-4. Enter a group name and select physical `light.*` members.
+In an isolated review installation, **Settings → Devices & services → Add
+integration → J'ai Lighting** offers **Add lighting group** and **Add preset**.
+No YAML is required to create or edit either.
 
-No YAML or helper setup is required. Existing physical lights remain directly
-controllable.
+Each group has a name, optional parent, direct physical lights, child groups,
+sibling order and bare-ON policy. Multiple roots and empty construction groups
+are allowed. A physical light belongs to one primary group; a group has at most
+one parent. Confirm an ownership move explicitly. Cycles, duplicate identities
+and aggregate lights selected as physical leaves are rejected.
 
-### GitHub repository and HACS metadata
+**Configure** edits the existing entry. Review the resulting topology and
+changed preset values/sources before Save. Invalid presets can be repaired inside
+that same workflow. Renaming/reparenting a group retains its virtual entity's
+registry identity and master. Replacing a light gives the new device its own
+baseline, without copying the removed device's memory. Direct physical overrides
+in presets require explicit repair when that leaf is removed.
 
-The project repository is [comache/jai-lighting](https://github.com/comache/jai-lighting)
-and remains private. The owner and repository address have been verified through
-the connected GitHub plugin. Documentation and issue links use that repository;
-the manifest maintainer is `@comache` and the integration version remains `0.1.0`.
+Registry-backed lights follow entity-ID renames. If their registry entry is
+deleted, membership becomes missing and never binds to a same-name replacement.
+Unregistered lights use their exact `light.*` ID, with an explicit rename
+limitation. Keep missing memberships through the editor until deliberately
+repaired or removed.
 
-The repository has the HACS directory structure, `hacs.json`, and a versioned
-manifest. HACS requires public repositories, so this private baseline is intended
-for manual installation. It is not a publicly installable HACS repository.
-See the [HACS requirements](https://www.hacs.xyz/docs/publish/start/).
+Deleting a nonempty group's config entry retains its topology as a blocked
+branch and creates a Repair issue. Use another group's Configure flow to move
+its lights/children and repair affected recipes. This prevents deletion from
+silently dropping ownership or broadening preset scope.
 
-If you later choose to publish the repository publicly, add
-`https://github.com/comache/jai-lighting` under HACS **Custom repositories** with
-category **Integration**, download it, restart HA, and add the integration in
-Settings. Public publication and a GitHub Release require a separate decision.
+## Independent faders and power
 
-## Configure groups
+A master is an independent position, initially 100%; it is not average lamp
+brightness. Moving a parent from 50% to 75% multiplies eligible real lamp levels
+by 1.5 and leaves child masters unchanged. A subsequent child move uses that
+child's previous position and the lamps' current reported levels.
 
-For the example installation, create **Sigle LED** with:
+Clipping permanently loses excess. Integer brightness uses half-up rounding:
+masters 3..255 and physical levels 1..255. A same-position request is a no-op,
+even after an absolute preset. Manual ON brightness becomes the next baseline.
+Master moves preserve color, effect and power.
 
-- `light.led_perete`
-- `light.semn_led_jai_bar`
-- `light.semn_led_jai_spate`
+When any descendant is ON, relative moves affect available ON dimmable lights;
+individually OFF lights and their saved levels stay unchanged. When all available
+lights are OFF, the addressed master's move scales shared saved targets without
+commands. Existing targets of unavailable lights can also scale in this case.
+No operation is queued for reconnect.
 
-Its suggested entity ID is `light.jai_sigle_led`. Home Assistant may add a suffix
-if that ID already exists. Rename the entity ID once in its entity settings if
-needed; later group-name or membership edits keep the registered entity ID.
+| Request | Behavior |
+| --- | --- |
+| Bare ON, RESTORE | OFF lights restore saved levels; already-ON lights retain theirs |
+| Bare ON, FULL | Every available dimmable light receives full brightness |
+| OFF | Save observed ON levels and turn available descendants OFF |
+| Native ON with brightness | Relative master change plus RESTORE, overriding FULL |
+| Native ON with color/CT/effect | RESTORE plus compatible explicit fields |
+| `set_master` | Relative movement with power preserved, including while OFF |
 
-Use the integration entry's **Configure** options to add, remove or replace
-members. Repeating **Add integration** creates other independent groups, such as
-Hol Sus, Backbar, Fatada, Interior or Terasa. A replacement uses its own level;
-it does not inherit the removed light's level. Removing a member does not turn it
-off. After renaming a physical entity ID, update its membership in Configure.
+Use the native **J'ai Lighting: Set relative master** action for an OFF fader
+move. Normal HA brightness controls turn lights ON. Presets and absolute control
+leave every group master unchanged and bypass bare-ON policies.
 
-Known J'ai groups and built-in aggregate groups are excluded/rejected. Select
-physical leaves only. Nested groups are disabled in this release.
+## Preset scenes
 
-## Master behavior
+The editor provides name, add/edit/remove target assignments, group/physical
+selectors, assignment switches, brightness/temperature/color/effect selectors,
+and a final per-leaf effective-state preview. Every preset creates one native
+`scene.*` entity. Its timestamp records an activation attempt, not success or a
+persistent active-scene state.
 
-The master is an independent fader, initially 100%, rather than an average of its
-members. Moving it from 50% to 60% multiplies each currently on, dimmable member's
-**real reported brightness** by `60 / 50`. A member at 60% becomes about 72%;
-a member already at 100% stays at 100%.
+Recipes are sparse and absolute. The most specific target wins **per property**:
+a child's brightness can override a parent while inheriting its ON and CT.
+Physical-leaf assignments are most specific. Conflicting assignments at the
+same specificity are rejected, even when a deeper row would shadow them.
 
-Clipping permanently loses the excess. Starting with master 50 and members
-100/60, the sequence 60 → 30 → 90 → 50 produces approximately:
+Omission means inherit, otherwise leave unchanged. A property-only recipe does
+not turn an OFF lamp ON and does not defer a change for its next ON. Final
+inherited OFF+properties, color+CT and effect+color/CT conflicts are rejected
+before capability filtering. Unsupported deeper assignments do not fall back
+to ancestor values.
 
-| Master | Member 1 | Member 2 |
-| --- | --- | --- |
-| 50 | 100 | 60 |
-| 60 | 100 | 72 |
-| 30 | 50 | 36 |
-| 90 | 100 | 100 |
-| 50 | 55.6 | 55.6 |
+Mixed groups expose only legal HA color modes. CT applies to native CT lights
+with per-leaf clamping. Tagged HS/RGB/XY colors convert deterministically to a
+supported physical format. RGB chromaticity is normalized; color-only commands
+omit brightness. RGBWW conversion requires advertised temperature bounds;
+missing bounds cause a reported skip. Effect names must match advertised names.
+Hardware mode switches may alter perceived output or stop an effect.
 
-There are no hidden values above 100%, trim helpers, or automatic changes to
-other members when a physical light is adjusted manually. The next fader move
-uses that light's current level. Lights individually switched off stay off
-during an active master move.
+## Domain actions and accepted HA boundaries
 
-HA uses integer brightness bytes. The master range is 3..255 (approximately
-1.18..100%, the first byte at or above 1%); physical outputs are 1..255.
-Ratios and half-up rounding operate on those bytes. Very small levels and
-repeated changes therefore have ordinary quantization loss. Colors and color
-temperatures are preserved; color controls and transitions are not exposed.
+| Action | Contract |
+| --- | --- |
+| `jai_lighting.set_master` | Native HA targets plus `brightness_pct` in 1..100; one group or disjoint groups |
+| `jai_lighting.control` | Native targets plus sparse `properties`, or a list of `{entity_id, properties}` assignments |
+| `jai_lighting.activate_preset` | Exactly one J'ai preset scene; optional detailed response |
+| `jai_lighting.get_topology` | Read-only versioned topology and retained state; response required |
 
-## Power and off-state adjustment
+Sparse absolute properties are `power` (`on`/`off`), `brightness_pct` (>0..100),
+`color_temp_kelvin`, `color: {kind: rgb/hs/xy, value: [...]}` and `effect`.
+Control batches combine identical/disjoint assignments; conflicting assignments
+to the same leaf/property are rejected without preset inheritance. A coherent
+operation creates at most one physical intention per leaf.
 
-The normal light toggle turns every available member off/on. Off retains the
-master and saved levels. On powers on all available members, including those
-previously turned off individually, using their last observed levels (or their
-off brightness attribute, otherwise 100% on first use).
+Native `light.*` actions should target one J'ai group or multiple disjoint groups.
+For parent+child/overlap use the common ancestor, a preset or domain control batch.
+Native color requests accept HA's preprocessing; strict original-property
+semantics are provided by presets/domain control. Core is never patched or
+intercepted. Transitions, flash and automatic retries are not advertised.
 
-**Home Assistant's normal brightness slider turns a light on.** Use
-**Developer tools → Actions → J'ai Lighting: Set master brightness** to move the
-master while keeping the group off. Its entity selector and slider are native
-Home Assistant UI controls. This action also works while the group is on:
+## Persistence, migration and failure
 
-```yaml
-action: jai_lighting.set_master
-target:
-  entity_id: light.jai_sigle_led
-data:
-  brightness_pct: 35
-```
+One versioned HA Store owns topology, sparse presets, independent masters and
+shared bounded targets. Accepted state is saved before dispatch. Current ON
+observations reconcile after commands and on startup, with no startup commands.
+An interruption journal reconciles Store/config-entry changes before control.
+Unknown storage versions or corrupt data fail closed and preserve the file.
 
-For master 70 and levels 30/50/100: turn off, set master to 35, then turn on to
-restore about 15/25/50. Multiple off-state changes apply sequentially, clipping
-at each step just as they would while on. No commands reach physical lights
-during these off-state master changes.
+Take a full HA backup **before** a v0.1 migration. Installation-wide preflight
+converts flat groups to independent RESTORE roots, preserving entry/registry
+identities, names, masters and bounded memory. Legacy overlaps require choosing
+one primary owner in Configure; the chosen owner's saved target wins. Original
+entry/restore records and available exact JSON record text are retained. Migration
+sends no hardware commands. Downgrade requires the pre-migration HA backup plus
+the unchanged v0.1.0 source tag; there is no automatic lossless flattening.
 
-Standard `light.turn_on` with brightness both moves the master and turns the
-members on. A brightness-zero light command follows HA's normal off behavior
-and retains the master. The `set_master` action accepts only 1..100 percent.
-The ordinary HA light brightness attribute is null while off; use the
-`master_brightness` or `master_brightness_pct` attributes to inspect the retained
-fader position.
+One domain lock serializes operations. Up to eight physical calls run in parallel,
+with a ten-second service timeout and two-second report timeout. Partial failures
+attempt other leaves, retain accepted masters and report uncertainty. Device
+brightness quantization is distinguished from exact acknowledgement. No rollback,
+replay or external-automation transaction is claimed. A post-dispatch save failure
+reports that devices may have changed and requires a fresh successful save.
 
-## Availability, failure and restart behavior
+Metadata and diagnostics expose hierarchy, IDs, coverage, mixed/unknown values,
+missing leaves and bounded results. They contain no dashboard layout. Abrupt
+power loss can lose recent external observations before their coalesced save.
 
-The group is on when any available member is on, and available when at least one
-member reports on/off. Missing, unknown and unavailable members are skipped.
-`unavailable_members` and `command_failures` attributes identify affected lights.
-On/off-only lights participate in power controls and are left unchanged by the
-fader. An on dimmable light that does not report brightness is skipped during a
-master move until it reports a real baseline.
-
-Calls inherit the originating HA context. Overlapping groups serialize their
-commands. The integration waits for real state reports, allowing up to two
-seconds after a physical service returns; the service itself has a ten-second
-timeout. Device rounding is accepted. Failures attempt the other members,
-retain the requested master and raise an action error listing affected lights.
-There are no automatic retries or deferred power-on commands for members that
-later reconnect. A recovered light's next actual on report becomes its baseline.
-Rapid hardware updates or concurrent external automations can still race an
-operation; arbitrary physical devices do not provide transactions.
-
-Master and bounded restore targets survive normal integration reloads and HA
-restarts through `RestoreEntity` extra data. Startup sends no light commands;
-current on levels override stored ones. HA saves restore data periodically and
-on graceful shutdown, so sudden power loss can lose recent fader changes.
-
-## Development and validation
+## Development checks
 
 ```sh
-python3.14 -m venv .venv
-.venv/bin/python -m pip install -r requirements-dev.txt
-.venv/bin/pytest -q
+.venv/bin/python -X faulthandler -m pytest -q
 .venv/bin/ruff check .
 .venv/bin/ruff format --check .
 ```
 
-Tests cover ratio increases/decreases, clipping loss, manual baselines, off/on,
-multiple off changes, unavailable and replaced members, persistence and mixed
-capabilities. Runtime tests use real HA flows, LightEntity services and registry
-lifecycle; fake physical lights supply device reports. GitHub Actions runs the
-same suite on Linux with Python 3.14. Tests do not verify the actual bistrot
-devices, HA OS image, or network transport latency.
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) for API verification, state decisions,
-failure semantics and the future deduplicated-leaf topology design.
+Dependencies are pinned in `requirements-dev.txt`. The original v0.1 arithmetic
+regressions remain; overlapping membership and preview-confirmation tests now
+exercise the approved changed contracts. See [VALIDATION.md](VALIDATION.md).
