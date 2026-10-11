@@ -201,3 +201,14 @@ for an isolated synthetic browser preview.
 
 The manager browser harness serves only generic fixtures on loopback. It does
 not connect to an HA installation; pinned Python tests exercise real HA APIs.
+
+## J'ai Control dashboard
+
+**J'ai Control** is a separate operational sidebar dashboard with an iPad-oriented
+layout, OFF-safe relative master sliders, recursive group details, Spotify controls,
+special selections and an administrator visual Designer. Dashboard placement uses
+stable group identities and is independent of lighting membership. Its configuration
+lives in a separate HA Store; existing dashboards remain unchanged.
+
+See [DASHBOARD.md](DASHBOARD.md) for discovery, controls, Designer, iPad/fullscreen
+setup, synthetic previews, validation and the mandatory backup/deployment procedure.
