@@ -87,20 +87,22 @@ class Editor:
         return vol.Schema(
             {
                 vol.Required("name", default=defaults.get("name", "")): selector.TextSelector(),
-                vol.Required("parent", default=defaults.get("parent", "")): select(
+                # HA's frontend rejects "" for a required selector, including
+                # the valid No parent choice. Empty groups/membership are valid.
+                vol.Optional("parent", default=defaults.get("parent", "")): select(
                     [{"value": "", "label": "No parent"}] + groups
                 ),
-                vol.Required(
+                vol.Optional(
                     "members", default=defaults.get("members", [])
                 ): selector.EntitySelector(
                     selector.EntitySelectorConfig(
                         filter={"domain": "light"}, multiple=True, exclude_entities=excluded
                     )
                 ),
-                vol.Required(
+                vol.Optional(
                     "missing_members", default=defaults.get("missing_members", [])
                 ): select(missing, multiple=True),
-                vol.Required("children", default=defaults.get("children", [])): select(
+                vol.Optional("children", default=defaults.get("children", [])): select(
                     groups, multiple=True
                 ),
                 vol.Required(
@@ -108,7 +110,7 @@ class Editor:
                 ): select(["RESTORE", "FULL"]),
                 vol.Required("order", default=defaults.get("order", 0)): number(0, 10000),
                 vol.Required("allow_moves", default=False): selector.BooleanSelector(),
-                vol.Required("remove_orphans", default=defaults.get("remove_orphans", [])): select(
+                vol.Optional("remove_orphans", default=defaults.get("remove_orphans", [])): select(
                     [
                         g
                         for g in groups
