@@ -2,13 +2,13 @@
 
 Implementation branch: `topology-manager-development`, based on main `aea79db`.
 Integration version remains `0.2.0.dev0`; Home Assistant Core pin is 2026.10.0.
-No release, tag, main merge, live deployment or live configuration edit was made.
+The owner authorized merging into main and deploying to the existing production
+installation on 2026-10-11. Deployment requires a newly created and verified
+complete HA backup. No new release/tag or visibility change is authorized.
 
-GitHub verification reported existing repository visibility `public`, despite
-the earlier private-repository instructions. Visibility was not changed by this
-task. The manager branch push to `35e19ee` completed before that discrepancy was
-acted on. Further pushes are paused pending owner clarification; this correction
-is initially a local documentation commit.
+GitHub verification reported existing repository visibility `public`. The owner
+subsequently confirmed that visibility is intentional and authorized further
+pushes. Visibility was not changed by this task.
 
 ## Automated validation
 
@@ -16,9 +16,9 @@ Final validation on 2026-10-11:
 
 | Check | Result |
 | --- | --- |
-| `.venv/bin/python -X faulthandler -m pytest -q` | 147 passed in 84.10 s; 6 HA/aiohttp/backoff warnings |
+| `.venv/bin/python -X faulthandler -m pytest -q` | 147 passed in 83.23 s on the pre-merge rerun; 6 HA/aiohttp/backoff warnings |
 | `.venv/bin/ruff check .` | Passed |
-| `.venv/bin/ruff format --check .` | Passed; 42 files formatted |
+| `.venv/bin/ruff format --check .` | Passed |
 | `node --test tests/frontend/*.test.mjs` with Playwright/Chrome | 11 passed; none skipped |
 | Prettier 3.6.2 format check | Passed |
 | `git diff --check` | Passed |
@@ -114,11 +114,16 @@ verify this propagation and preserve the earlier relative scaling/manual-baselin
 tests. No Core interception, planner rewrite or lighting-semantic workaround was
 introduced.
 
-## Manual acceptance, before approving deployment
+## Manual acceptance
 
-Use a backed-up isolated HA 2026.10.0 test installation first. Observe service
-calls/logs and physical state throughout editing; configuration changes must
-send zero light commands.
+The owner authorized initial acceptance on the existing production installation.
+Create and verify a complete HA backup first. Start with read-only inspection.
+Preparing a one-light removal preview is authorized; saving that removal requires
+fresh owner confirmation. Scene activation, lighting commands and other topology
+changes require explicit owner approval. The broader checklist below documents
+later acceptance coverage, not blanket permission to execute all steps live.
+Observe service calls/logs throughout editing; configuration changes must send
+zero light commands.
 
 1. As an administrator, verify the J'ai Lighting sidebar and all four sections.
    Confirm a non-admin cannot open the panel or mutate through its websocket API.
@@ -151,11 +156,12 @@ send zero light commands.
     Simulated failures/journal interruption are automated tests; avoid manually
     corrupting the live Store to reproduce them.
 
-## Installation instructions for later approval only
+## Installation procedure
 
-These steps have not been executed against any live installation.
+The owner has approved this procedure. Repository push alone does not prove live
+deployment; verify the actual running source, existing identities and sidebar.
 
-1. Review and approve the development branch and manual results. Take a full HA
+1. Review and validate the development branch. Take a full HA
    backup, including configuration entries, registries and `.storage`, and record
    the installed source commit. Stop if HA/Core versions differ from the tested pin.
 2. Install the reviewed `custom_components/jai_lighting` directory including its
@@ -165,9 +171,10 @@ These steps have not been executed against any live installation.
 3. Restart HA, examine setup/Repair logs and open the admin sidebar. If old assets
    persist, refresh the browser/app cache. Verify startup and read-only inspection
    send no commands before creating/editing anything.
-4. Complete the empty-root flow, then repeat the acceptance plan on ONE small
-   physical group. Only explicit controls/scene activation may send commands.
-   Expand to more lights after reviewing results; do not import a venue topology.
+4. Inspect existing entities, masters, memberships, scenes and dashboard references
+   without changing them. Open all four manager sections and test search/filters.
+   Prepare one physical-member removal preview, then wait for owner confirmation
+   before Save. Do not activate scenes or toggle lights during verification.
 5. If rollback is required after new manager features were saved, restore the
    matching full pre-installation backup and source. Preserve the failed evidence
    for review. No release/tag or automatic deployment is part of this task.
