@@ -9,6 +9,7 @@ from uuid import uuid4
 from homeassistant.helpers.storage import Store
 
 from .capabilities import Color
+from .collections import Collection
 from .models import Capabilities, Group, Identity, Leaf, ModelError, PowerPolicy, RuntimeState
 from .presets import Preset, Target, resolve
 from .topology import Topology
@@ -29,9 +30,17 @@ class Snapshot:
     config_revision: int = 0
     state_revision: int = 0
     capabilities: dict[str, dict[str, Any]] = field(default_factory=dict)
+    collections: dict[str, Collection] = field(default_factory=dict)
 
     def validate(self) -> None:
         self.runtime.validate()
+        if len(self.collections) > 1000:
+            raise ModelError("Snapshot exceeds 1,000 collections")
+        if self.collections.keys() & (self.tree.groups.keys() | self.tree.leaves.keys()):
+            raise ModelError("Collection identity collision")
+        for id_, collection in self.collections.items():
+            if id_ != collection.id or set(collection.members) - self.tree.leaves.keys():
+                raise ModelError("Invalid collection identity or missing physical member")
         if len(self.presets) > 1000:
             raise ModelError("Snapshot exceeds 1,000 presets")
         if self.runtime.masters.keys() - self.tree.groups.keys():
@@ -58,7 +67,7 @@ class Snapshot:
         for id_, preset in self.presets.items():
             if id_ != preset.id:
                 raise ModelError("Preset identity mismatch")
-            resolve(self.tree, preset)
+            resolve(self.tree, preset, collections=self.collections)
 
     def dump(self) -> dict[str, Any]:
         self.validate()
@@ -101,6 +110,10 @@ class Snapshot:
                 "leaf_brightness_targets": dict(self.runtime.targets),
             },
             "capability_cache": self.capabilities,
+            "collections": {
+                id_: {"name": collection.name, "members": list(collection.members)}
+                for id_, collection in self.collections.items()
+            },
         }
 
     @classmethod
@@ -148,6 +161,10 @@ class Snapshot:
                 data["config_revision"],
                 data["state_revision"],
                 dict(data.get("capability_cache", {})),
+                {
+                    id_: Collection(id_, record["name"], tuple(record["members"]))
+                    for id_, record in data.get("collections", {}).items()
+                },
             )
             result.validate()
             return result

@@ -71,6 +71,7 @@ def preflight(
         base.config_revision + 1,
         base.state_revision + 1,
         dict(base.capabilities),
+        dict(base.collections),
     )
     result.validate()
     return result

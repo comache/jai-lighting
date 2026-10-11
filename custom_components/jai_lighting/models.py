@@ -61,15 +61,14 @@ class Group:
 class Leaf:
     id: str
     identity: Identity
-    parent: str
+    parent: str | None
     order: int = 0
 
     def __post_init__(self) -> None:
         if (
             not isinstance(self.id, str)
             or not self.id
-            or not isinstance(self.parent, str)
-            or not self.parent
+            or (self.parent is not None and (not isinstance(self.parent, str) or not self.parent))
             or type(self.order) is not int
         ):
             raise ModelError("Invalid leaf")
