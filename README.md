@@ -195,5 +195,9 @@ npm run test:frontend
 Dependencies are pinned in `requirements-dev.txt`. The original v0.1 arithmetic
 regressions remain; overlapping membership and preview-confirmation tests now
 exercise the approved changed contracts. See [VALIDATION.md](VALIDATION.md).
+The Manager UX review, context-preservation behavior and deployment checklist
+are documented in [MANAGER_UX.md](MANAGER_UX.md). Run `npm run preview:manager`
+for an isolated synthetic browser preview.
+
 The manager browser harness serves only generic fixtures on loopback. It does
 not connect to an HA installation; pinned Python tests exercise real HA APIs.
