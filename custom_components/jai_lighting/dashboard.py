@@ -8,7 +8,7 @@ import asyncio
 import re
 import unicodedata
 from copy import deepcopy
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid5
 
 import probatio as vol
 from homeassistant.auth.permissions.const import POLICY_CONTROL, POLICY_READ
@@ -48,6 +48,7 @@ CARD = vol.Schema(
             ["lavender", "peach", "mint", "blue", "rose"]
         ),
         vol.Optional("size", default="medium"): vol.In(["small", "medium", "wide"]),
+        vol.Optional("quick_brightness", default=False): bool,
         vol.Optional("quick", default=list): vol.All([REFERENCE], vol.Length(max=8)),
     }
 )
@@ -206,7 +207,11 @@ def initial_config(catalog):
         tabs = [{"id": "lighting", "name": "Lumini", "floor_id": None, "cards": [], "moods": []}]
 
     def card(ref, quick=None):
-        return {"id": uuid4().hex, "target": ref, "quick": quick or []}
+        return {
+            "id": uuid5(NAMESPACE_URL, f"jai-dashboard:{ref['kind']}:{ref['id']}").hex,
+            "target": ref,
+            "quick": quick or [],
+        }
 
     for id_, group in sorted(groups.items(), key=lambda item: (item[1]["order"], item[1]["name"])):
         lineage, cursor = [], id_
@@ -229,7 +234,11 @@ def initial_config(catalog):
             )
         if not tab and len(tabs) == 1 and tabs[0]["id"] == "lighting":
             tab = tabs[0]
-        if tab and {"kind": "group", "id": id_} not in (general, service):
+        if (
+            tab
+            and len(tab["cards"]) < 100
+            and {"kind": "group", "id": id_} not in (general, service)
+        ):
             tab["cards"].append(
                 card(
                     {"kind": "group", "id": id_},
@@ -273,7 +282,11 @@ class DashboardStore:
         if not self.loaded:
             data = await self.store.async_load()
             if data is not None:
-                if type(data.get("revision")) is not int or data["revision"] < 1:
+                if (
+                    not isinstance(data, dict)
+                    or type(data.get("revision")) is not int
+                    or data["revision"] < 1
+                ):
                     raise ModelError("Invalid dashboard revision; retained for repair")
                 data = {"revision": data["revision"], "config": validate_config(data["config"])}
             self.data, self.loaded = data, True

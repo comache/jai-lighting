@@ -179,3 +179,62 @@ async def test_corrupt_layout_is_retained_not_reset(hass):
             await store.load()
         save.assert_not_called()
         assert not store.loaded
+
+
+def test_initial_layout_is_stable_and_large_discovery_is_bounded():
+    groups = {
+        str(i): {
+            "name": f"Group {i}",
+            "entity_id": f"light.synthetic_{i}",
+            "parent": None,
+            "children": [],
+            "lights": [],
+            "order": i,
+        }
+        for i in range(150)
+    }
+    catalog = {"groups": groups, "entities": {}, "floors": [], "collections": {}, "presets": {}}
+    first = initial_config(catalog)
+    assert first == initial_config(catalog)
+    assert len(first["tabs"][0]["cards"]) == 100
+
+
+async def test_saved_unknown_references_are_retained_and_read_permissions_filter_bindings(hass):
+    connection, request = await api(hass)
+    config = (await request("get"))["result"]["config"]
+    config["tabs"][0]["cards"] = [
+        {
+            "id": "retained",
+            "target": {"kind": "group", "id": "missing"},
+            "quick": [{"kind": "entity", "id": "light.private"}],
+        }
+    ]
+    assert (await request("save", config=config, revision=0))["success"]
+    assert (await request("get"))["result"]["config"]["tabs"][0]["cards"][0]["target"][
+        "id"
+    ] == "missing"
+    reader, read = await api(hass, admin=False)
+    assert not (await read("get"))["result"]["config"]["tabs"][0]["cards"]
+    assert (await DashboardStore(hass).load())["config"]["tabs"][0]["cards"]
+    reader.async_handle_close()
+    connection.async_handle_close()
+
+
+def test_config_rejects_unsafe_style_and_duplicate_cards():
+    from probatio import Invalid
+
+    config = initial_config(
+        {"groups": {}, "entities": {}, "floors": [], "collections": {}, "presets": {}}
+    )
+    card = {
+        "id": "a",
+        "target": {"kind": "entity", "id": "light.example"},
+        "accent": "red;background:url(secret)",
+    }
+    config["tabs"][0]["cards"] = [card]
+    with pytest.raises(Invalid):
+        validate_config(config)
+    card["accent"] = "mint"
+    config["tabs"][0]["cards"] = [card, dict(card)]
+    with pytest.raises(ModelError):
+        validate_config(config)
