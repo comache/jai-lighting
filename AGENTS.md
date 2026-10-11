@@ -1,9 +1,16 @@
 # Repository workflow
 
-Use the connected GitHub plugin for GitHub operations. Do not switch to GitHub
-CLI, Git push, direct HTTP, or SSH for remote GitHub operations without an
-explicit exception from the user. If the plugin lacks a required capability,
-report that limitation instead of silently changing interfaces.
+The user grants standing permission for normal Git operations for this project,
+including commit, branch, merge, pull and push to `comache/jai-lighting`.
+Do not ask for permission for each routine Git operation. Git CLI transport is
+authorized to preserve existing local commit identities and history. Prefer the
+connected GitHub plugin for GitHub API operations and remote verification.
 
-Preserve the v0.1.0 integration behavior and architecture while creating the
-baseline. Do not start v0.2 work without an explicit request from the user.
+Preserve existing released tags, including the annotated `v0.1.0` tag, unless
+the user explicitly requests a change. The validated v0.2 implementation has
+been merged into `main`; v0.1.0 is preserved through its existing tag.
+
+Do not create GitHub Releases, change repository visibility or deploy to Home
+Assistant unless explicitly requested. Stop and report unexpected divergence or
+conflicts before destructive resolution; standing permission covers normal Git
+operations, not unrequested history rewriting.
