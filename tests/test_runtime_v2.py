@@ -354,6 +354,7 @@ async def test_storage_failure_pre_dispatch_and_all_unavailable(hass, devices, m
     devices[0]._attr_available = False
     devices[0].async_write_ha_state()
     await hass.async_block_till_done()
+    assert next(iter(manager.snapshot.capabilities.values()))["stale"] is True
     with pytest.raises(HomeAssistantError, match="No available"):
         await action(hass, "control", "light.jai_root", properties={"power": "on"})
     await action(hass, "set_master", "light.jai_root", brightness_pct=50)
@@ -478,6 +479,9 @@ async def test_nonempty_deletion_preserves_blocked_topology_and_empty_deletion_j
     assert root.entry_id not in manager.snapshot.tree.groups
     assert manager.snapshot.tree.resolve(repaired.entry_id) == (leaf,)
     assert manager.observations()[leaf].available
+    from homeassistant.helpers import issue_registry as ir
+
+    assert ("jai_lighting", f"orphan_{root.entry_id}") not in ir.async_get(hass).issues
     assert not devices[0].calls
 
 

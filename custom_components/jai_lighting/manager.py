@@ -67,6 +67,7 @@ class Manager:
                         "Group host missing; branch retained and blocked. "
                         "Move members/children and repair presets.",
                     )
+            self.clear_resolved_issues()
             self.subscribe()
             self._registry_unsubscribe = self.hass.bus.async_listen(
                 "entity_registry_updated", self._changed
@@ -195,13 +196,15 @@ class Manager:
         for id_, o in observations.items():
             if o.capabilities.modes:
                 c = o.capabilities
+                fresh = o.available and bool(o.properties.get("supported_color_modes"))
                 candidate.capabilities[id_] = {
                     "modes": sorted(c.modes),
                     "min_kelvin": c.min_kelvin,
                     "max_kelvin": c.max_kelvin,
                     "effects": list(c.effects),
+                    "stale": not fresh,
                     "observed_at": time.time()
-                    if o.available
+                    if fresh
                     else self.snapshot.capabilities.get(id_, {}).get("observed_at"),
                 }
         await self.repo.save(candidate)
@@ -257,6 +260,25 @@ class Manager:
             translation_placeholders={"error": text},
         )
 
+    @callback
+    def clear_resolved_issues(self):
+        for domain, id_ in tuple(ir.async_get(self.hass).issues):
+            if domain != DOMAIN:
+                continue
+            if id_.startswith("orphan_"):
+                group_id = id_.removeprefix("orphan_")
+                if (
+                    group_id not in self.snapshot.tree.groups
+                    or self.hass.config_entries.async_get_entry(group_id)
+                ):
+                    ir.async_delete_issue(self.hass, DOMAIN, id_)
+            elif id_ == "migration" and not any(
+                e.version == 1 for e in self.hass.config_entries.async_entries(DOMAIN)
+            ):
+                ir.async_delete_issue(self.hass, DOMAIN, id_)
+            elif id_ == "configuration_recovery" and not self.repo.journal:
+                ir.async_delete_issue(self.hass, DOMAIN, id_)
+
     async def _host_durable(self, hosts: list[dict]) -> None:
         # Read-only check of pinned Core storage. Never call Store.load on Core's
         # file: it could rename corrupt JSON or migrate an unfamiliar minor schema.
@@ -311,6 +333,7 @@ class Manager:
                     await self.hass.config_entries.async_remove(spec["id"])
             await self._host_durable(journal["hosts"])
             await self.repo.finish()
+            self.clear_resolved_issues()
             if self.loaded:
                 self.subscribe()
                 self.notify()
@@ -396,6 +419,7 @@ class Manager:
             )
         await self._host_durable(journal["hosts"])
         await self.repo.finish()
+        self.clear_resolved_issues()
         if self.loaded:
             self.subscribe()
             self.notify()
