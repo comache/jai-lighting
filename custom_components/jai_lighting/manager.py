@@ -766,7 +766,7 @@ class Manager:
                 raise HomeAssistantError("No available leaves support the requested output")
             if self.failures and not response:
                 raise HomeAssistantError(
-                    "J'ai Lighting could not confirm: " + ", ".join(self.failures)
+                    "J'ai Light Manager could not confirm: " + ", ".join(self.failures)
                 )
             return dict(self.outcome)
 

@@ -1,9 +1,9 @@
 {
-  "title": "J'ai Lighting",
+  "title": "J'ai Light Manager",
   "config": {
     "step": {
       "user": {
-        "title": "J'ai Lighting",
+        "title": "J'ai Light Manager",
         "description": "Create groups in one lighting hierarchy, or create an absolute preset scene.",
         "menu_options": {
           "group": "Add lighting group",
@@ -120,7 +120,7 @@
   "options": {
     "step": {
       "user": {
-        "title": "J'ai Lighting",
+        "title": "J'ai Light Manager",
         "description": "Create groups in one lighting hierarchy, or create an absolute preset scene.",
         "menu_options": {
           "group": "Add lighting group",
@@ -270,7 +270,7 @@
   },
   "issues": {
     "configuration": {
-      "title": "J'ai Lighting configuration needs attention",
+      "title": "J'ai Light Manager configuration needs attention",
       "description": "{error}"
     }
   }

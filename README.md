@@ -1,4 +1,4 @@
-# J'ai Lighting
+# J'ai Light Manager
 
 Home Assistant groups with independent relative master faders, a shared physical
 lighting hierarchy and absolute preset scenes. Names, topology, lights, presets
@@ -21,7 +21,7 @@ are in [IMPLEMENTATION_V0.2.md](IMPLEMENTATION_V0.2.md).
 
 ## Manager
 
-Administrators can open **J'ai Lighting** in the HA sidebar. Hierarchy provides
+Administrators can open **J'ai Light Manager** in the HA sidebar. Hierarchy provides
 group creation, rename/policy, subtree moves, explicit membership, ordering,
 multi-selection, search, desktop/touch drag-and-drop and Move to / up / down
 alternatives. Every edit is reviewed and revision-checked before Save.
@@ -48,7 +48,7 @@ manual acceptance and later deployment instructions.
 ## Configuration
 
 In an isolated review installation, **Settings → Devices & services → Add
-integration → J'ai Lighting** offers **Add lighting group** and **Add preset**.
+integration → J'ai Light Manager** offers **Add lighting group** and **Add preset**.
 No YAML is required to create or edit either.
 
 Each group has a name, optional parent, direct physical lights, child groups,
@@ -102,7 +102,7 @@ No operation is queued for reconnect.
 | Native ON with color/CT/effect | RESTORE plus compatible explicit fields |
 | `set_master` | Relative movement with power preserved, including while OFF |
 
-Use the native **J'ai Lighting: Set relative master** action for an OFF fader
+Use the native **J'ai Light Manager: Set relative master** action for an OFF fader
 move. Normal HA brightness controls turn lights ON. Presets and absolute control
 leave every group master unchanged and bypass bare-ON policies.
 

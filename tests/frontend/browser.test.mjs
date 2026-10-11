@@ -183,7 +183,6 @@ test("single, modifier, range, empty-space and keyboard selection are file-manag
 
 test("contextual actions explain disabled states and inspector add button shows eligible count", async () => {
   const { page, context, errors } = await pageFor();
-  await page.getByLabel("More actions", { exact: true }).click();
   assert(
     await page
       .getByRole("button", { name: "Rename group", exact: true })
@@ -195,7 +194,6 @@ test("contextual actions explain disabled states and inspector add button shows 
       .getAttribute("title"),
     /previous sibling/,
   );
-  await page.getByLabel("More actions", { exact: true }).click();
   await row(page, "group:root").click();
   assert(
     await page
@@ -220,6 +218,68 @@ test("contextual actions explain disabled states and inspector add button shows 
   await safe(page, errors);
   await context.close();
 });
+
+for (const width of [390, 820, 1440]) {
+  test(`compact toolbar exposes grouped actions without a dropdown at ${width}px`, async () => {
+    const { page, context, errors } = await pageFor(width, width === 390);
+    await page
+      .getByRole("heading", { name: "J'ai Light Manager", exact: true })
+      .waitFor();
+    assert.equal(
+      await page.getByLabel("More actions", { exact: true }).count(),
+      0,
+    );
+    for (const name of [
+      "Create group",
+      "Expand all",
+      "Collapse all",
+      "Move to…",
+      "Move up",
+      "Move down",
+      "Rename group",
+      "Delete group",
+      "Remove membership",
+    ]) {
+      assert(
+        await page.getByRole("button", { name, exact: true }).isVisible(),
+        name,
+      );
+    }
+    assert(
+      await page
+        .getByRole("button", { name: "Move to…", exact: true })
+        .isDisabled(),
+    );
+    assert.equal(
+      await page.locator('.hierarchy-controls [role="group"]').count(),
+      3,
+    );
+    const layout = await page.locator(".hierarchy-controls").evaluate((el) => ({
+      height: el.getBoundingClientRect().height,
+      overflow: el.scrollWidth > el.clientWidth,
+      noticeHeight: el
+        .getRootNode()
+        .querySelector(".notification")
+        .getBoundingClientRect().height,
+    }));
+    assert(!layout.overflow);
+    assert.equal(layout.noticeHeight, 0);
+    assert(layout.height < (width === 390 ? 240 : 125), JSON.stringify(layout));
+    await row(page, "group:child").click();
+    assert(
+      await page
+        .getByRole("button", { name: "Move to…", exact: true })
+        .isEnabled(),
+    );
+    assert(
+      await page
+        .getByRole("button", { name: "Rename group", exact: true })
+        .isEnabled(),
+    );
+    await safe(page, errors);
+    await context.close();
+  });
+}
 
 test("Hierarchy browser excludes assigned lights with labels; Collections allows them and individual exceptions", async () => {
   const { page, context, errors } = await pageFor();
@@ -440,6 +500,11 @@ test("desktop drag moves a light, reorders groups and rejects cycles visually", 
   await page.mouse.move(child.x + 120, child.y + child.height / 2, {
     steps: 6,
   });
+  // Deliver a settled native hover after Chromium starts the HTML drag.
+  await page.mouse.move(child.x + 120, child.y + child.height / 2);
+  await page
+    .locator('[data-key="group:child"][data-drop-state="invalid"]')
+    .waitFor();
   assert.equal(
     await row(page, "group:child").getAttribute("data-drop-state"),
     "invalid",

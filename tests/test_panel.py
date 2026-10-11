@@ -257,6 +257,7 @@ async def test_supported_panel_registration_is_admin_only_and_idempotent(hass):
     await asyncio.gather(async_setup_panel(hass), async_setup_panel(hass))
     panel = hass.data[frontend.DATA_PANELS]["jai-lighting"].to_response()
     assert panel["require_admin"]
+    assert panel["title"] == "J'ai Light Manager"
     assert panel["config"]["_panel_custom"]["name"] == "jai-lighting-manager"
     assert panel["config"]["_panel_custom"]["module_url"] == "/jai_lighting_static/manager.js"
     assert panel["config_panel_domain"] == "jai_lighting"
