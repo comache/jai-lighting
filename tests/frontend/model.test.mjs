@@ -99,3 +99,123 @@ test("all user labels are escaped before HTML insertion", () => {
     "&lt;img src=&quot;x&quot; onerror=&quot;bad&quot;&gt; &amp;",
   );
 });
+
+import {
+  groupStats,
+  unassignedLights,
+  planDrop,
+  movableItems,
+  selectVisible,
+} from "../../custom_components/jai_lighting/frontend/model.js";
+
+test("unassigned membership is explicit and label filtering cannot leak assigned lights", () => {
+  const current = structuredClone(data);
+  current.leaves.two.parent_group_id = null;
+  assert.deepEqual(
+    unassignedLights(current).map((x) => x.entity_id),
+    ["light.two"],
+  );
+  assert.equal(unassignedLights(current, { label: "test" }).length, 0);
+  assert.equal(unassignedLights(current, { label: "test" }, false).length, 1);
+});
+test("actual counts aggregate available, OFF and missing descendants independently of expansion", () => {
+  const current = structuredClone(data);
+  current.inventory.lights[0].state = "on";
+  current.inventory.lights[1].state = "off";
+  let stats = groupStats(current);
+  assert.equal(stats.root.groups, 1);
+  assert.equal(stats.root.direct, 0);
+  assert.equal(stats.root.total, 2);
+  assert.equal(stats.child.state, "Mixed");
+  assert.equal(stats.other.state, "Empty");
+  current.inventory.lights.pop();
+  stats = groupStats(current);
+  assert.equal(stats.root.unavailable, 1);
+  assert.equal(stats.root.on, 1);
+  assert.equal(stats.child.total, 2);
+});
+test("range and modifier selection use stable visible keys and a missing anchor is safe", () => {
+  const keys = [
+    "group:root",
+    "group:child",
+    "leaf:one",
+    "leaf:two",
+    "group:other",
+  ];
+  assert.deepEqual(
+    [
+      ...selectVisible(new Set(["group:root"]), keys, "group:other", null, {
+        toggle: true,
+      }),
+    ],
+    ["group:root", "group:other"],
+  );
+  assert.deepEqual(
+    [
+      ...selectVisible(new Set(), keys, "leaf:two", "group:child", {
+        range: true,
+      }),
+    ],
+    ["group:child", "leaf:one", "leaf:two"],
+  );
+  assert.deepEqual(
+    [...selectVisible(new Set(), keys, "leaf:one", "deleted", { range: true })],
+    ["leaf:one"],
+  );
+});
+test("drag planner preserves whole subtrees, rejects cycles and reorders multiple siblings before/after", () => {
+  const current = structuredClone(data);
+  const selected = [
+    { kind: "group", id: "root" },
+    { kind: "group", id: "child" },
+    { kind: "leaf", id: "one" },
+  ];
+  assert.deepEqual(movableItems(current, selected), [
+    { kind: "group", id: "root" },
+  ]);
+  assert.throws(
+    () => planDrop(current, selected, { kind: "group", id: "child" }),
+    /subtree/,
+  );
+  assert.throws(
+    () =>
+      planDrop(current, [{ kind: "group", id: "root" }], {
+        kind: "group",
+        id: "root",
+      }),
+    /different/,
+  );
+  assert.deepEqual(
+    planDrop(
+      current,
+      [{ kind: "leaf", id: "two" }],
+      { kind: "leaf", id: "one" },
+      "before",
+    )[0].ids,
+    ["two", "one"],
+  );
+  assert.deepEqual(
+    planDrop(
+      current,
+      [{ kind: "leaf", id: "one" }],
+      { kind: "leaf", id: "two" },
+      "after",
+    )[0].ids,
+    ["two", "one"],
+  );
+  assert.equal(
+    planDrop(current, [{ kind: "group", id: "child" }], {
+      kind: "group",
+      id: "",
+    })[0].parent,
+    null,
+  );
+  assert.throws(
+    () =>
+      planDrop(current, [{ kind: "inventory", id: "light.one" }], {
+        kind: "group",
+        id: "other",
+      }),
+    /already assigned/,
+  );
+});

@@ -2,7 +2,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:frontend": "node --test tests/frontend/*.test.mjs"
+    "test:frontend": "node --test tests/frontend/*.test.mjs",
+    "preview:manager": "node scripts/preview-manager.mjs"
   },
   "devDependencies": {
     "playwright": "1.62.1",
