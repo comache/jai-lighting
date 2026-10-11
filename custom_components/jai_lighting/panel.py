@@ -220,7 +220,7 @@ async def async_setup_panel(hass):
             hass,
             frontend_url_path="jai-lighting",
             webcomponent_name="jai-lighting-manager",
-            sidebar_title="J'ai Lighting",
+            sidebar_title="J'ai Light Manager",
             sidebar_icon="mdi:lightbulb-group",
             module_url="/jai_lighting_static/manager.js",
             require_admin=True,

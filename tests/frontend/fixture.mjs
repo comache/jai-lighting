@@ -214,7 +214,7 @@ export function fixtureHtml({ data = sample, theme = "light" } = {}) {
     theme === "dark"
       ? "--primary-background-color:#15191e;--card-background-color:#20262e;--secondary-background-color:#2b333e;--primary-text-color:#ebeff5;--secondary-text-color:#9aa8b9;--divider-color:#343d48;--primary-color:#69bfea"
       : "--primary-background-color:#f5f7fa;--card-background-color:#fff;--primary-text-color:#20252d;--primary-color:#007aab";
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>J’ai Lighting — Development preview</title><style>body{margin:0;${colors}}</style></head><body><script type="module">
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>J’ai Light Manager — Development preview</title><style>body{margin:0;${colors}}</style></head><body><script type="module">
   import "/manager.js";
   window.requests=[];window.sample=${JSON.stringify(data)};
   const apply=${fixtureApply.toString()};

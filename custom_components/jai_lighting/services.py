@@ -37,16 +37,16 @@ def register_services(hass, manager):
                 elif kind == "preset" and id_ in manager.snapshot.presets:
                     result.append(id_)
                 else:
-                    raise HomeAssistantError("Target has the wrong J'ai Lighting kind")
+                    raise HomeAssistantError("Target has the wrong J'ai Light Manager kind")
             elif kind == "control":
                 matched = [id_ for id_, route in manager.routes().items() if route == entity_id]
                 if not matched:
                     raise HomeAssistantError("Control targets must be configured physical leaves")
                 result.extend(matched)
             else:
-                raise HomeAssistantError("Target must be a J'ai Lighting entity")
+                raise HomeAssistantError("Target must be a J'ai Light Manager entity")
         if not result:
-            raise HomeAssistantError("No J'ai Lighting targets selected")
+            raise HomeAssistantError("No J'ai Light Manager targets selected")
         return result
 
     async def set_master(call):

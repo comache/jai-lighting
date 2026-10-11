@@ -61,6 +61,6 @@ class JaiScene(Scene):
     async def async_activate(self, **kwargs):
         if kwargs:
             raise HomeAssistantError(
-                "J'ai Lighting presets do not support transitions or extra scene properties"
+                "J'ai Light Manager presets do not support transitions or extra scene properties"
             )
         await self.manager.execute("preset", self._context, preset_id=self.preset_id)
