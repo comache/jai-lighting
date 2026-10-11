@@ -11,6 +11,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 
 from .const import DOMAIN
+from .dashboard import register_dashboard
 from .management import apply, build_candidate, inventory, preview, selected_lights
 from .manager import get_manager
 from .models import ModelError
@@ -201,6 +202,7 @@ async def websocket_manager(hass, connection, msg):
 
 
 async def async_setup_panel(hass):
+    register_dashboard(hass)
     if KEY not in hass.data:
         websocket_api.async_register_command(hass, websocket_manager)
         hass.data[KEY] = {"registered": False, "lock": asyncio.Lock()}
@@ -225,5 +227,15 @@ async def async_setup_panel(hass):
             module_url="/jai_lighting_static/manager.js",
             require_admin=True,
             config_panel_domain=DOMAIN,
+        )
+        await panel_custom.async_register_panel(
+            hass,
+            frontend_url_path="jai-control",
+            webcomponent_name="jai-control",
+            sidebar_title="J'ai Control",
+            sidebar_icon="mdi:view-dashboard-outline",
+            module_url="/jai_lighting_static/control.js",
+            require_admin=False,
+            handle_safe_area=True,
         )
         state["registered"] = True
