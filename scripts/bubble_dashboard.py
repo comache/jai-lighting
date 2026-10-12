@@ -118,6 +118,9 @@ def generate(snapshot, bindings, plan):
             "type": "custom:bubble-card",
             "card_type": "button",
             "button_type": "slider",
+            "card_layout": "large-2-rows" if len(buttons) > 2 else "large",
+            "rows": 2 if len(buttons) > 2 else 1,
+            "grid_options": {"columns": 12, "rows": 2 if len(buttons) > 2 else 1},
             "entity": bindings["masters"][id_],
             "name": groups[id_]["name"],
             "icon": "mdi:tune-vertical",
@@ -129,6 +132,7 @@ def generate(snapshot, bindings, plan):
             "styles": (
                 "ha-card { --bubble-main-background-color: #302b3d; "
                 f"--bubble-accent-color: {color}; "
+                f"--bubble-slider-fill-color: {color}45; "
                 "--bubble-border-radius: 24px; --bubble-button-border-radius: 24px; }"
             ),
         }
@@ -172,8 +176,16 @@ def generate(snapshot, bindings, plan):
         }
 
     sidebar = [
-        note("# J’ai Bistrot\nLUMINĂ · ATMOSFERĂ · MUZICĂ"),
-        {"type": "clock", "clock_style": "digital", "clock_size": "medium", "show_seconds": False},
+        note("## J’ai Bistrot\nLUMINĂ · ATMOSFERĂ · MUZICĂ"),
+        {
+            "type": "clock",
+            "clock_style": "digital",
+            "clock_size": "medium",
+            "show_seconds": False,
+            "time_format": "24",
+            "no_background": True,
+            "grid_options": {"columns": 12, "rows": 2},
+        },
         note("{{ now().strftime('%d.%m.%Y') }}"),
         heading("Control general", "mdi:tune-vertical"),
     ]
@@ -190,6 +202,8 @@ def generate(snapshot, bindings, plan):
                 "media_controls": ["previous", "play_pause_stop", "next"],
                 "volume_controls": ["volume_mute", "volume_set"],
                 "collapsible_controls": True,
+                "layout": "horizontal",
+                "grid_options": {"columns": 12, "rows": 2},
             },
         ]
     sidebar.append(heading("Acces rapid", "mdi:flash-outline"))
