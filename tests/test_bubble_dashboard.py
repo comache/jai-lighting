@@ -68,7 +68,7 @@ def test_safe_master_bindings_and_separate_power(inputs):
         assert details["tap_action"]["action"] == "navigate"
         if card["sub_button"]["bottom"]:
             assert card["rows"] == card["grid_options"]["rows"] == 2
-            assert card["card_layout"] == "large-2-rows"
+            assert card["card_layout"] == "large"
 
 
 def test_popup_children_direct_leaves_and_stable_links(inputs):

@@ -118,7 +118,7 @@ def generate(snapshot, bindings, plan):
             "type": "custom:bubble-card",
             "card_type": "button",
             "button_type": "slider",
-            "card_layout": "large-2-rows" if len(buttons) > 2 else "large",
+            "card_layout": "large",
             "rows": 2 if len(buttons) > 2 else 1,
             "grid_options": {"columns": 12, "rows": 2 if len(buttons) > 2 else 1},
             "entity": bindings["masters"][id_],
@@ -131,7 +131,7 @@ def generate(snapshot, bindings, plan):
             "sub_button": {"main": buttons[:2], "bottom": buttons[2:]},
             "styles": (
                 "ha-card { --bubble-main-background-color: #302b3d; "
-                f"--bubble-accent-color: {color}; "
+                f"--bubble-accent-color: {color}45; "
                 f"--bubble-slider-fill-color: {color}45; "
                 "--bubble-border-radius: 24px; --bubble-button-border-radius: 24px; }"
             ),
